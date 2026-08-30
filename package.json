@@ -1,0 +1,17 @@
+{
+  "name": "internet-info-collector",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["backend", "frontend"],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,cyan \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "test": "npm run test --workspace backend && npm run test --workspace frontend",
+    "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
+    "verify:storage": "node scripts/verify-storage.mjs"
+  },
+  "devDependencies": { "concurrently": "^9.2.1" },
+  "engines": { "node": ">=20.0.0" }
+}
