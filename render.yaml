@@ -6,7 +6,7 @@ services:
     region: singapore
     branch: main
     rootDir: .
-    buildCommand: npm ci && npm run build --workspace backend
+    buildCommand: npm ci --include=dev && npm run build --workspace backend
     startCommand: npm run start --workspace backend
     healthCheckPath: /api/health/ready
     autoDeployTrigger: "off"
