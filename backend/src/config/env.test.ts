@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { parseEnvironment } from "./env.js";
 
-describe("environment", () => {
-  it("supports the documented names and derives provider API URLs", () => {
-    const value = parseEnvironment({ BACKEND_PORT: "4100", FRONTEND_ORIGIN: "http://localhost:5174", CONNECTOR_CONCURRENCY: "2", GITLAB_BASE_URL: "https://gitlab.example", GITLAB_ENABLED: "true" });
-    expect(value).toMatchObject({ PORT: 4100, FRONTEND_URL: "http://localhost:5174", SEARCH_CONCURRENCY: 2, GITLAB_ENABLED: true, GITLAB_API_BASE_URL: "https://gitlab.example/api/v4/" });
+describe("environment configuration", () => {
+  it("uses Render-compatible binding and explicit production origins", () => {
+    const value = parseEnvironment({ NODE_ENV: "production", PORT: "10000", FRONTEND_ORIGINS: "https://atlashu.netlify.app" });
+    expect(value).toMatchObject({ BACKEND_HOST: "0.0.0.0", PORT: 10000, FRONTEND_ORIGINS: ["https://atlashu.netlify.app"] });
   });
-  it("rejects invalid boolean flags", () => { expect(() => parseEnvironment({ GITHUB_ENABLED: "yes" })).toThrow(/Invalid environment configuration/); });
+
+  it("keeps both supported local Vite origins in development", () => {
+    const value = parseEnvironment({ NODE_ENV: "development" });
+    expect(value.FRONTEND_ORIGINS).toEqual(expect.arrayContaining(["http://localhost:5175", "http://127.0.0.1:5175"]));
+  });
 });

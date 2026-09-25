@@ -12,6 +12,8 @@ Collect only public or explicitly authorized information through official APIs o
 - `.env` files are ignored; `.env.example` contains placeholders only.
 - Connector and AI tokens never participate in cache keys or frontend environment variables.
 
+The MongoDB credential previously committed in `.env.example` must be rotated in MongoDB Atlas. Removing it from the current tree does not revoke it or remove it from Git history; review the repository history and coordinate any history rewrite separately.
+
 ## Request protection
 
 - Validate inputs and cap strings, arrays, pagination, payloads, and concurrency.

@@ -18,7 +18,13 @@ export function createApp() {
   app.use(requestId);
   app.use(pinoHttp({ logger }));
   app.use(helmet());
-  app.use(cors({ origin: env.FRONTEND_URL, credentials: false }));
+  app.use(cors({
+    origin(origin, callback) {
+      if (!origin || env.FRONTEND_ORIGINS.includes(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+    credentials: false
+  }));
   app.use(express.json({ limit: "256kb" }));
   app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
 

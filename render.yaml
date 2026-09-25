@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: atlas-api
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: .
+    buildCommand: npm ci && npm run build --workspace backend
+    startCommand: npm run start --workspace backend
+    healthCheckPath: /api/health/ready
+    autoDeployTrigger: "off"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_HOST
+        value: 0.0.0.0
+      - key: FRONTEND_ORIGINS
+        value: https://atlashu.netlify.app
+      - key: GITHUB_ENABLED
+        value: "true"
+      - key: GITLAB_ENABLED
+        value: "true"
+      - key: CODEBERG_ENABLED
+        value: "true"
+      - key: GITEA_ENABLED
+        value: "true"
+      - key: FORGEJO_ENABLED
+        value: "true"
+      - key: MONGODB_URI
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITLAB_TOKEN
+        sync: false
+      - key: CODEBERG_TOKEN
+        sync: false
+      - key: GITEA_TOKEN
+        sync: false
+      - key: FORGEJO_TOKEN
+        sync: false

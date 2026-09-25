@@ -5,12 +5,14 @@ import { health, listConnectors } from "../services/api";
 export function DashboardPage() {
   const healthQuery = useQuery({ queryKey: ["health"], queryFn: health });
   const connectors = useQuery({ queryKey: ["connectors"], queryFn: listConnectors });
+  const apiStatus = healthQuery.isPending ? "Checking" : healthQuery.isError ? "Disconnected" : healthQuery.data.status;
+  const databaseStatus = healthQuery.isError ? "Unavailable" : healthQuery.data?.database ?? "Unknown";
   return (
     <section className="page">
       <div className="page-heading"><div><span className="eyebrow">Research command center</span><h1>Find signal across public sources.</h1><p>Search provider APIs, preserve provenance, and build research collections from real data.</p></div><Link className="button primary" to="/search">Start a search</Link></div>
       <div className="stats-grid">
         <Stat label="Active connectors" value={connectors.data?.length ?? "—"} detail="Five public code forges connected" />
-        <Stat label="API status" value={healthQuery.data?.status ?? "Checking"} detail={`Database: ${healthQuery.data?.database ?? "unknown"}`} />
+        <Stat label="API status" value={apiStatus} detail={`Database: ${databaseStatus}`} />
         <Stat label="Saved items" value="0" detail="Research management arrives in M5" />
         <Stat label="Watchlists" value="0" detail="Monitoring arrives in M6" />
       </div>

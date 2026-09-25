@@ -2,8 +2,20 @@ import type { ConnectorSummary, RepositoryResultPage, RepositorySearchJobRequest
 
 interface Envelope<T> { success: boolean; data: T; error?: { message: string; details?: unknown }; meta?: { requestId?: string } }
 
+const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+
+export function buildApiUrl(path: string, baseUrl = configuredApiBaseUrl): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (!baseUrl.trim()) return normalizedPath;
+  const base = new URL(baseUrl);
+  if (base.username || base.password || base.search || base.hash) throw new Error("VITE_API_BASE_URL must be a clean HTTP(S) origin or base path");
+  if (!/^https?:$/.test(base.protocol)) throw new Error("VITE_API_BASE_URL must use HTTP or HTTPS");
+  const prefix = base.pathname.replace(/\/+$/, "");
+  return `${base.origin}${prefix}${normalizedPath}`;
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(buildApiUrl(path), {
     ...init,
     headers: { "content-type": "application/json", ...init?.headers }
   });
@@ -42,4 +54,4 @@ export function getSearchJob(jobId: string): Promise<SearchJob> { return api(`/a
 export function getSearchJobResults(jobId: string, cursor?: string, limit = 50): Promise<RepositoryResultPage> { const query = new URLSearchParams({ limit: String(limit) }); if (cursor) query.set("cursor", cursor); return api(`/api/search/jobs/${jobId}/results?${query}`); }
 export function cancelSearchJob(jobId: string): Promise<SearchJob> { return api(`/api/search/jobs/${jobId}/cancel`, { method: "POST" }); }
 export function retrySearchSource(jobId: string, source: RepositorySource): Promise<SearchJob> { return api(`/api/search/jobs/${jobId}/sources/${source}/retry`, { method: "POST" }); }
-export function searchExportUrl(jobId: string, format: "json" | "csv"): string { return `/api/search/jobs/${jobId}/export?format=${format}`; }
+export function searchExportUrl(jobId: string, format: "json" | "csv"): string { return buildApiUrl(`/api/search/jobs/${jobId}/export?format=${format}`); }

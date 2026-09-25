@@ -11,7 +11,9 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-The frontend defaults to `http://localhost:5173`; the API defaults to `http://127.0.0.1:4000`. The Vite `/api` proxy targets that same port. Copy `.env.example` to `.env` to enable additional connectors or configure backend-only tokens.
+The frontend runs at `http://localhost:5175`; the API defaults to `http://127.0.0.1:4000`. The Vite `/api` proxy targets that same API port. Copy `.env.example` to `backend/.env` to enable additional connectors or configure backend-only tokens. Leave `frontend/.env` without `VITE_API_BASE_URL` for local proxy mode; set `VITE_API_BASE_URL` to the deployed backend origin in Netlify production.
+
+Production uses the root `netlify.toml` for the frontend build and SPA fallback, and `render.yaml` for an independently deployed Express service. Set `MONGODB_URI` and optional connector tokens only in Render. Set `VITE_API_BASE_URL` in Netlify to the verified Render service origin before building the production frontend.
 
 MongoDB is required for **All available results** mode. When MongoDB is unavailable, Atlas reports degraded storage and permits only bounded Fast/Deep jobs so an unbounded collection cannot accumulate in Node.js memory.
 

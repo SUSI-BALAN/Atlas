@@ -10,11 +10,12 @@ const booleanValue = z.preprocess((value) => {
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  BACKEND_HOST: z.string().default("127.0.0.1"),
+  BACKEND_HOST: z.string().optional(),
   BACKEND_PORT: z.coerce.number().int().min(1).max(65535).optional(),
   PORT: z.coerce.number().int().min(1).max(65535).optional(),
   FRONTEND_ORIGIN: optionalUrl,
   FRONTEND_URL: optionalUrl,
+  FRONTEND_ORIGINS: z.string().optional(),
   MONGODB_URI: z.string().min(1).default("mongodb://127.0.0.1:27017/multi_forge"),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(10000),
   CONNECTOR_CONCURRENCY: z.coerce.number().int().min(1).max(10).optional(),
@@ -58,10 +59,23 @@ export function parseEnvironment(input: NodeJS.ProcessEnv) {
   const parsed = envSchema.safeParse(input);
   if (!parsed.success) throw new Error(`Invalid environment configuration: ${z.prettifyError(parsed.error)}`);
   const value = parsed.data;
+  const configuredOrigins = value.FRONTEND_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean)
+    ?? [value.FRONTEND_ORIGIN ?? value.FRONTEND_URL].filter((origin): origin is string => Boolean(origin));
+  const localOrigins = value.NODE_ENV === "production" ? [] : [
+    "http://localhost:5175", "http://127.0.0.1:5175", "http://localhost:5173", "http://127.0.0.1:5173"
+  ];
+  const frontendOrigins = [...new Set([...configuredOrigins, ...localOrigins])].map((origin) => {
+    const url = new URL(origin);
+    if (!/^https?:$/.test(url.protocol) || url.origin === "null") throw new Error("FRONTEND_ORIGINS must contain explicit HTTP(S) origins");
+    return url.origin;
+  });
+  if (frontendOrigins.length === 0) throw new Error("At least one frontend origin is required");
   return {
     ...value,
+    BACKEND_HOST: value.BACKEND_HOST ?? (value.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1"),
     PORT: value.BACKEND_PORT ?? value.PORT ?? 4000,
-    FRONTEND_URL: value.FRONTEND_ORIGIN ?? value.FRONTEND_URL ?? "http://localhost:5173",
+    FRONTEND_URL: frontendOrigins[0],
+    FRONTEND_ORIGINS: frontendOrigins,
     SEARCH_CONCURRENCY: value.CONNECTOR_CONCURRENCY ?? value.SEARCH_CONCURRENCY ?? 3,
     GITHUB_API_BASE_URL: value.GITHUB_API_URL ?? value.GITHUB_API_BASE_URL ?? "https://api.github.com",
     GITLAB_API_BASE_URL: value.GITLAB_API_BASE_URL ?? apiUrl(value.GITLAB_BASE_URL, "api/v4/"),
