@@ -9,13 +9,13 @@ export function DashboardPage() {
     <section className="page">
       <div className="page-heading"><div><span className="eyebrow">Research command center</span><h1>Find signal across public sources.</h1><p>Search provider APIs, preserve provenance, and build research collections from real data.</p></div><Link className="button primary" to="/search">Start a search</Link></div>
       <div className="stats-grid">
-        <Stat label="Active connectors" value={connectors.data?.length ?? "—"} detail="GitHub is the reference source" />
+        <Stat label="Active connectors" value={connectors.data?.length ?? "—"} detail="Five public code forges connected" />
         <Stat label="API status" value={healthQuery.data?.status ?? "Checking"} detail={`Database: ${healthQuery.data?.database ?? "unknown"}`} />
         <Stat label="Saved items" value="0" detail="Research management arrives in M5" />
         <Stat label="Watchlists" value="0" detail="Monitoring arrives in M6" />
       </div>
       <div className="panel-grid">
-        <article className="panel"><span className="eyebrow">Quick start</span><h2>Search GitHub repositories</h2><p>Try a focused query with language and star filters. Results come directly from GitHub and retain their source URL.</p><Link to="/search">Open universal search →</Link></article>
+        <article className="panel"><span className="eyebrow">Quick start</span><h2>Research across every forge</h2><p>Run a focused topic search, collect additional pages, and retain each result's original source and provenance.</p><Link to="/search">Open universal search →</Link></article>
         <article className="panel"><span className="eyebrow">Access policy</span><h2>Designed for permitted collection</h2><p>Official APIs come first. Credentials stay server-side, requests are bounded, and connector failures remain visible.</p><Link to="/sources">Review source health →</Link></article>
       </div>
     </section>

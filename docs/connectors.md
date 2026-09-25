@@ -1,41 +1,15 @@
 # Connector Development Guide
 
-## Contract
+Repository connectors implement one source-neutral contract: configuration validation, health/rate-limit status, normalization, and `searchRepositories()` as an `AsyncGenerator<RepositorySearchBatch>`. Each yielded page is persisted before the next page is fetched.
 
-Each connector declares:
+All connectors must use official/public APIs, backend-only optional tokens, an abort signal, response validation, explicit timeouts, bounded retries, and sanitized structured logs. Permanent 4xx errors are not retried. Retryable network/timeouts, 429, and selected 5xx responses use exponential backoff with jitter and provider reset/retry timing.
 
-- stable `id`, display `name`, semantic `version`
-- capability flags
-- `validateConfig()`
-- `search()`
-- supported `fetchItem()` / `fetchUpdates()` methods
-- `normalize()` or an internal mapper returning shared normalized items
-- `getRateLimitStatus()` and `getHealth()`
+## Providers
 
-Unsupported methods return a typed capability error; they do not silently return empty data.
+- GitHub uses `GITHUB_API_URL` and a maximum page size of 100. It reads search/rate-limit headers. All mode recursively partitions creation-date ranges when a search window reports more than GitHub's accessible 1,000 matches. A still-oversized one-day range is flagged `providerLimited`; Atlas does not claim to bypass it.
+- GitLab uses `/api/v4/projects`, page size 100, and `X-Next-Page`/total pagination metadata where supplied.
+- Codeberg, Gitea.com, and Forgejo use separate instances of one reusable Gitea/Forgejo adapter against `/api/v1/repos/search`. Pages are fetched sequentially until the provider reports no next page or returns an exhausted page.
 
-## Required behavior
+Provider-supported query, owner/topic, sorting, and filters are forwarded. Where a Forge API does not support a filter, it is applied conservatively to each returned page and documented in the connector implementation. Provider response shapes never reach frontend components.
 
-- Use an official API where available.
-- Accept an abort signal and enforce a timeout.
-- Bound pagination and page size.
-- Validate provider responses at the trust boundary.
-- Preserve provider identifiers and source URLs.
-- Never synthesize absent fields.
-- Classify retryable versus permanent errors.
-- Expose rate-limit/reset/retry-after metadata when the provider supplies it.
-- Redact credentials and authorization values from errors/logs.
-
-## Error taxonomy
-
-`authentication`, `authorization`, `validation`, `not_found`, `rate_limited`, `timeout`, `network`, `provider`, `malformed_response`, `disabled`, and `unsupported_capability`.
-
-Only timeout, transient network/provider failures, and provider-approved rate-limit retries are retry candidates. Authentication, authorization, invalid request, and not-found errors are permanent for that request.
-
-## New connector checklist
-
-Document name/platform, access method, authentication, capabilities, search/detail behavior, pagination, rate limits, raw shape, normalization, errors, retries, cache policy, tests, and compliance notes. Register the connector in composition code; core orchestration must not otherwise change.
-
-## GitHub reference
-
-The GitHub connector uses the official REST API, optional backend token, explicit API version header, bounded pagination, and response headers for rate-limit state. Repository search is the first end-to-end capability. Repository subresources are fetched only when explicitly requested.
+Disabled connectors remain registered for honest Sources-page visibility, but are excluded from `sources: "all"` and cannot execute a search.

@@ -14,6 +14,8 @@ export interface SourceSearchStatus {
   source: string;
   status: "success" | "failed";
   resultCount: number;
+  total: number | null;
+  hasMore: boolean;
   rateLimit: RateLimitStatus | null;
   error: { code: string; message: string; retryable: boolean } | null;
 }
@@ -22,19 +24,24 @@ export interface UnifiedSearchResult {
   status: "completed" | "partially_completed" | "failed";
   results: NormalizedItem[];
   sourceStatus: SourceSearchStatus[];
-  pagination: { page: number; perPage: number; returned: number; hasMore: boolean };
+  pagination: { page: number; perPage: number; perSourcePageSize: number; returned: number; hasMore: boolean };
 }
 
 export class SearchService {
   constructor(private readonly registry: ConnectorRegistry, private readonly concurrency: number) {}
 
   async search(query: SearchQuery, requestId: string): Promise<UnifiedSearchResult> {
+    // Reserve an equal page window for every requested source. This prevents a
+    // large provider from consuming the global page and silently skipping rows
+    // from smaller providers when the caller requests the next page.
+    const perSourcePageSize = Math.max(1, Math.ceil(query.perPage / query.sources.length));
     const executions = await mapLimit(query.sources, this.concurrency, async (source) => {
       const connector = this.registry.get(source);
       if (!connector) return failure(source, "CONNECTOR_NOT_FOUND", "Connector is not registered", false);
+      if (!connector.enabled) return failure(source, "CONNECTOR_DISABLED", "Connector is disabled", false);
       if (!connector.capabilities.search) return failure(source, "UNSUPPORTED_CAPABILITY", "Connector does not support search", false);
       try {
-        const result = await connector.search(query, { requestId, jobId: null });
+        const result = await connector.search({ ...query, perPage: perSourcePageSize }, { requestId, jobId: null });
         await persistCollectedItems(connector, result.items, result.rawItems, requestId, null);
         return { source, connectorResult: result } as const;
       } catch (error) {
@@ -51,14 +58,18 @@ export class SearchService {
     const results = rankItems(deduplicate(successes.flatMap((entry) => entry.connectorResult.items)), query).slice(0, query.perPage);
     const status = failures.length === 0 ? "completed" : successes.length === 0 ? "failed" : "partially_completed";
     const sourceStatus: SourceSearchStatus[] = [
-      ...successes.map(({ source, connectorResult }) => ({ source, status: "success" as const, resultCount: connectorResult.items.length, rateLimit: connectorResult.rateLimit, error: null })),
+      ...successes.map(({ source, connectorResult }) => ({
+        source, status: "success" as const, resultCount: connectorResult.items.length,
+        total: connectorResult.total, hasMore: connectorResult.hasMore,
+        rateLimit: connectorResult.rateLimit, error: null
+      })),
       ...failures.map((entry) => entry.failureStatus)
     ];
     const response: UnifiedSearchResult = {
       status,
       results,
       sourceStatus,
-      pagination: { page: query.page, perPage: query.perPage, returned: results.length, hasMore: successes.some((entry) => entry.connectorResult.hasMore) }
+      pagination: { page: query.page, perPage: query.perPage, perSourcePageSize, returned: results.length, hasMore: successes.some((entry) => entry.connectorResult.hasMore) }
     };
     await this.persistHistory(query, requestId, response);
     return response;
@@ -77,7 +88,7 @@ export class SearchService {
 function failure(source: string, code: string, message: string, retryable: boolean) {
   return {
     source,
-    failureStatus: { source, status: "failed" as const, resultCount: 0, rateLimit: null, error: { code, message, retryable } }
+    failureStatus: { source, status: "failed" as const, resultCount: 0, total: null, hasMore: false, rateLimit: null, error: { code, message, retryable } }
   };
 }
 

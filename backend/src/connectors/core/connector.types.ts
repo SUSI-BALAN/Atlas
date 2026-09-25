@@ -20,6 +20,8 @@ export interface ConnectorHealth {
   status: ConnectorHealthStatus;
   message: string | null;
   lastSuccessfulRequestAt: string | null;
+  lastCheckedAt?: string | null;
+  latencyMs?: number | null;
 }
 
 export interface RateLimitStatus {
@@ -27,6 +29,7 @@ export interface RateLimitStatus {
   remaining: number | null;
   resetAt: string | null;
   retryAfterSeconds: number | null;
+  used?: number | null;
 }
 
 export interface ConnectorContext {

@@ -57,7 +57,7 @@ export function mapRepository(item: GitHubRepository, context: ConnectorContext)
     updatedAt: item.updated_at,
     publishedAt: null,
     metadata: {
-      repositoryId: item.id, name: item.name, ownerType: item.owner.type ?? null,
+      repositoryId: item.id, name: item.name, ownerType: item.owner.type ?? null, cloneUrl: item.clone_url ?? null,
       license: item.license?.spdx_id ?? item.license?.name ?? null,
       defaultBranch: item.default_branch, pushedAt: item.pushed_at, archived: item.archived,
       fork: item.fork, visibility: item.visibility ?? null, homepage: item.homepage, sizeKb: item.size

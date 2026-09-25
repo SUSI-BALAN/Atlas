@@ -7,7 +7,7 @@ import { SearchService } from "./search.service.js";
 
 function connector(id: string, search: PlatformConnector["search"]): PlatformConnector {
   return {
-    id, name: id, version: "1.0.0",
+    id, name: id, version: "1.0.0", homepageUrl: "https://example.test", accessMethod: "Test API", enabled: true, authentication: "anonymous",
     capabilities: { search: true, itemDetails: false, comments: false, repositories: true, users: false, issues: false, pullRequests: false, releases: false, commits: false, changeTracking: false },
     validateConfig: async () => undefined,
     search,
@@ -15,6 +15,7 @@ function connector(id: string, search: PlatformConnector["search"]): PlatformCon
     fetchUpdates: async () => { throw new Error("unsupported"); },
     getRateLimitStatus: () => ({ limit: null, remaining: null, resetAt: null, retryAfterSeconds: null }),
     getHealth: () => ({ status: "healthy", message: null, lastSuccessfulRequestAt: null })
+    ,searchRepositories: async function* () { return; }
   };
 }
 
@@ -34,5 +35,21 @@ describe("SearchService", () => {
     expect(result.status).toBe("partially_completed");
     expect(result.results).toHaveLength(1);
     expect(result.sourceStatus).toEqual(expect.arrayContaining([expect.objectContaining({ source: "bad", status: "failed" })]));
+  });
+
+  it("allocates the global page across sources without skipping provider rows", async () => {
+    const registry = new ConnectorRegistry();
+    const observedPageSizes: number[] = [];
+    for (const id of ["one", "two", "three"]) {
+      registry.register(connector(id, async (request) => {
+        observedPageSizes.push(request.perPage);
+        return { items: [], rawItems: [], total: 100, hasMore: true, rateLimit: { limit: null, remaining: null, resetAt: null, retryAfterSeconds: null } };
+      }));
+    }
+    const service = new SearchService(registry, 3);
+    const result = await service.search({ query: "research", sources: ["one", "two", "three"], types: ["repository"], filters: {}, sort: "relevance", page: 1, perPage: 20 }, "request");
+    expect(observedPageSizes).toEqual([7, 7, 7]);
+    expect(result.pagination.perSourcePageSize).toBe(7);
+    expect(result.sourceStatus.every((status) => status.hasMore)).toBe(true);
   });
 });

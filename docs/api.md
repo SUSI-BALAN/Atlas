@@ -1,65 +1,40 @@
 # REST API Contracts
 
-## Envelope
+All JSON routes use `{ success, data, meta }` envelopes. Errors use `{ success: false, error: { code, message, details? }, meta }`; secrets, authorization headers, unsafe provider payloads, and production stack traces are excluded.
 
-Success:
+## Search jobs
 
-```json
-{ "success": true, "data": {}, "meta": { "requestId": "..." } }
-```
-
-Failure:
+`POST /api/search/jobs` starts a repository collection job and returns HTTP 202 (or 200 for a reusable cached job).
 
 ```json
 {
-  "success": false,
-  "error": { "code": "VALIDATION_ERROR", "message": "Request validation failed", "details": [] },
-  "meta": { "requestId": "..." }
+  "query": "AI coding agent",
+  "sources": ["github", "gitlab", "codeberg", "gitea", "forgejo"],
+  "filters": { "language": ["TypeScript"], "starsMin": 10, "archived": false },
+  "sort": { "field": "stars", "direction": "desc" },
+  "collectionMode": "all",
+  "resultLimit": null
 }
 ```
 
-Errors never expose secrets, authorization headers, internal stack traces, or complete unsafe provider payloads.
+`sources: "all"` resolves to currently enabled repository connectors. `resultLimit: null` with `collectionMode: "all"` means no internal result cap. Provider API limits still apply. All mode returns `DATABASE_REQUIRED` when MongoDB is unavailable.
 
-## POST /api/search
+- `GET /api/search/jobs/:jobId` returns job status, total unique source identities, and per-source fetched/page/rate-limit/error progress.
+- `GET /api/search/jobs/:jobId/results?cursor=<object-id>&limit=50` returns `{ results, nextCursor, hasMore }`; limit is capped at 100.
+- `POST /api/search/jobs/:jobId/cancel` aborts active requests and retry waits.
+- `POST /api/search/jobs/:jobId/sources/:source/retry` restarts a failed or rate-limited source while persisted identity deduplication prevents duplicate rows.
+- `GET /api/search/jobs/:jobId/export?format=json|csv` streams the stored dataset from the backend.
 
-Request:
+Job states are `queued`, `running`, `rate_limited`, `partially_complete`, `completed`, `cancelled`, and `failed`. One failed source does not discard successful source results.
 
-```json
-{
-  "query": "local AI coding agent",
-  "sources": ["github"],
-  "types": ["repository"],
-  "filters": { "language": "TypeScript", "minStars": 10 },
-  "sort": "relevance",
-  "page": 1,
-  "perPage": 20
-}
-```
+## Legacy synchronous search
 
-Response data:
+`POST /api/search` remains available for compatibility with the original bounded, mixed-content GitHub search contract. New repository collection UI uses search jobs.
 
-```json
-{
-  "status": "completed",
-  "results": [],
-  "sourceStatus": [
-    { "source": "github", "status": "success", "resultCount": 0, "rateLimit": null }
-  ],
-  "pagination": { "page": 1, "perPage": 20, "returned": 0, "hasMore": false }
-}
-```
+## Connector discovery and health
 
-`status` is `completed`, `partially_completed`, or `failed`. A fully invalid request uses an HTTP 400 response; source failures are represented inside a valid search response. A complete upstream outage may use HTTP 502 when no source produces a usable result.
+- `GET /api/connectors`
+- `GET /api/connectors/:id`
+- `GET /api/health`
 
-## Connector discovery
-
-- `GET /api/connectors` returns public connector metadata, capabilities, health, and sanitized rate-limit state.
-- `GET /api/connectors/:id` returns one connector or 404.
-
-## Health
-
-`GET /api/health` returns API status, database status, timestamp, and version. `200` means the API is serving; dependencies can still be marked degraded.
-
-## Planned groups
-
-Items, jobs, saved items, collections, watchlists, changes, analytics, export, AI, settings, and authentication will follow the same envelope and actor-aware service boundaries.
+Connector responses expose enabled state, anonymous/token-configured authentication, capabilities, sanitized rate-limit status, health, latency, version, and last check. Tokens are never returned.

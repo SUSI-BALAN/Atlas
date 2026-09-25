@@ -12,6 +12,7 @@ const filters = z.object({
   tags: z.array(z.string().trim().min(1).max(50)).max(20).optional(),
   createdAfter: date.optional(), createdBefore: date.optional(),
   updatedAfter: date.optional(), updatedBefore: date.optional()
+  ,license: z.string().trim().min(1).max(64).optional(), archived: z.boolean().optional()
 }).strict().default({});
 
 export const searchSchema = z.object({

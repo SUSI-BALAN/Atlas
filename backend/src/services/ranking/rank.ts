@@ -4,7 +4,7 @@ import type { SearchQuery } from "../../types/search.js";
 export function rankItems(items: NormalizedItem[], query: SearchQuery): NormalizedItem[] {
   const scored = items.map((item) => ({ item, score: relevanceScore(item, query.query) }));
   scored.sort((a, b) => compare(a, b, query));
-  return scored.map(({ item }) => item);
+  return interleaveSources(scored.map(({ item }) => item), query.sources);
 }
 
 function compare(a: { item: NormalizedItem; score: number }, b: { item: NormalizedItem; score: number }, query: SearchQuery): number {
@@ -29,15 +29,29 @@ function relevanceScore(item: NormalizedItem, query: string): number {
     if (description.includes(term)) score += 1;
     if (item.tags.some((tag) => tag.toLocaleLowerCase().includes(term))) score += 2;
   }
-  if (item.source === "github" && item.sourceType === "repository") {
-    score += Math.log10((item.metrics.stars ?? 0) + 1);
-  }
   const changedAt = item.updatedAt ?? item.publishedAt ?? item.createdAt;
   if (changedAt) {
     const ageDays = Math.max(0, (Date.now() - Date.parse(changedAt)) / 86_400_000);
     score += Math.max(0, 1 - ageDays / 3650);
   }
   return score;
+}
+
+function interleaveSources(items: NormalizedItem[], preferredOrder: string[]): NormalizedItem[] {
+  const buckets = new Map<string, NormalizedItem[]>();
+  for (const item of items) buckets.set(item.source, [...(buckets.get(item.source) ?? []), item]);
+  const order = [
+    ...preferredOrder.filter((source, index) => preferredOrder.indexOf(source) === index && buckets.has(source)),
+    ...[...buckets.keys()].filter((source) => !preferredOrder.includes(source))
+  ];
+  const result: NormalizedItem[] = [];
+  for (let index = 0; result.length < items.length; index += 1) {
+    for (const source of order) {
+      const item = buckets.get(source)?.[index];
+      if (item) result.push(item);
+    }
+  }
+  return result;
 }
 
 function compareDates(a: string | null, b: string | null): number {

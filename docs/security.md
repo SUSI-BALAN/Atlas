@@ -10,12 +10,14 @@ Collect only public or explicitly authorized information through official APIs o
 - Frontend bundles and API responses never contain provider tokens.
 - Logs redact authorization, cookies, tokens, passwords, keys, and configured secrets.
 - `.env` files are ignored; `.env.example` contains placeholders only.
+- Connector and AI tokens never participate in cache keys or frontend environment variables.
 
 ## Request protection
 
 - Validate inputs and cap strings, arrays, pagination, payloads, and concurrency.
 - Configure explicit CORS origins, Helmet headers, API rate limits, and JSON body limits.
 - Apply outbound timeouts and abort propagation.
+- Keep all-results collection behind durable storage, bounded connector concurrency, and sequential per-connector pagination.
 - Return safe error details with request IDs.
 
 ## External URL / SSRF policy

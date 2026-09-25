@@ -1,35 +1,34 @@
-# Universal Internet Platform Information Collector
+# Atlas Multi-Forge Research
 
-A local-first research application for collecting, normalizing, searching, and monitoring public or explicitly authorized information from internet platforms. GitHub is the reference connector; provider-specific behavior remains behind connector contracts.
+Atlas is a local-first repository research application. It collects public or explicitly authorized repository metadata from GitHub, GitLab, Codeberg, Gitea.com, and Forgejo through their REST APIs, normalizes it, and keeps provenance links to the original sources.
 
-## Status
+## Run locally
 
-Active milestone: M4 unified-search expansion. M0–M3 and the first GitHub search vertical slice are implemented. See [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) for the authoritative handoff state.
+Requirements: Node.js 20+ and MongoDB.
 
-## Principles
-
-- Use official APIs where available and respect authentication, access, and rate limits.
-- Keep credentials on the backend and redact them from logs.
-- Preserve provenance and never fabricate missing provider values.
-- Return useful partial results when an individual connector fails.
-- Keep collection, normalization, ranking, persistence, and presentation separate.
-
-## Planned local commands
-
-```bash
-npm install
-npm run dev
-npm test
-npm run build
+```powershell
+npm.cmd install
+npm.cmd run dev
 ```
 
-Environment defaults are documented in `.env.example`. MongoDB is required for persistence; health and connector metadata remain observable when it is unavailable.
+The frontend defaults to `http://localhost:5173`; the API defaults to `http://127.0.0.1:4000`. The Vite `/api` proxy targets that same port. Copy `.env.example` to `.env` to enable additional connectors or configure backend-only tokens.
 
-## Current working flow
+MongoDB is required for **All available results** mode. When MongoDB is unavailable, Atlas reports degraded storage and permits only bounded Fast/Deep jobs so an unbounded collection cannot accumulate in Node.js memory.
 
-1. Start MongoDB.
-2. Optionally copy `.env.example` to `.env` and set a backend-only `GITHUB_TOKEN`.
-3. Run `npm run dev`.
-4. Open `http://localhost:5173/search` and search GitHub repositories, users, organizations, issues, or pull requests.
+## Search modes
 
-The API starts in explicit degraded mode if MongoDB is unavailable. Live GitHub search can still return provider data, while persistence failures remain logged.
+- Fast: collects up to 50 results.
+- Deep: collects up to 500 results.
+- All available results: sequentially consumes every accessible provider page, subject to provider caps, cancellation, and rate limits. No application-side result cap is applied.
+
+Results are normalized and persisted one batch at a time, displayed through cursor pagination, and exportable as streaming JSON or CSV. GitHub search windows over 1,000 matches are recursively partitioned by creation date; a single-day partition can still be provider-limited and is reported honestly.
+
+## Verification
+
+```powershell
+npm.cmd run typecheck
+npm.cmd test
+npm.cmd run build
+```
+
+See [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) for current implementation status and [docs/api.md](./docs/api.md) for API contracts.

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { logger } from "../config/logger.js";
+import { env } from "../config/env.js";
 
 export class AppError extends Error {
   constructor(
@@ -40,10 +41,15 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
     return;
   }
 
+  const stack = error instanceof Error ? error.stack : undefined;
   logger.error({ err: error, requestId: res.locals.requestId, method: req.method, path: req.path }, "Unhandled request error");
   res.status(500).json({
     success: false,
-    error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred" },
+    error: {
+      code: "INTERNAL_ERROR",
+      message: error instanceof Error && error.message ? error.message : "An unexpected error occurred",
+      ...(env.NODE_ENV !== "production" && stack ? { details: { requestId: res.locals.requestId, stack } } : {})
+    },
     meta: { requestId: res.locals.requestId }
   });
 }

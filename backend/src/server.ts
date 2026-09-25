@@ -5,14 +5,17 @@ import { connectDatabase, disconnectDatabase } from "./database/mongoose.js";
 
 const app = createApp();
 
-try {
-  await connectDatabase();
-} catch {
-  logger.warn("Starting API in degraded mode without database persistence");
-}
+const server = app.listen(env.PORT, env.BACKEND_HOST, () => {
+  logger.info({ host: env.BACKEND_HOST, port: env.PORT }, "API listening");
+});
 
-const server = app.listen(env.PORT, () => {
-  logger.info({ port: env.PORT }, "API listening");
+void connectDatabase().catch(() => {
+  logger.warn("API remains available in degraded mode without database persistence");
+});
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  logger.fatal({ err: error, code: error.code, host: env.BACKEND_HOST, port: env.PORT }, "API failed to bind");
+  process.exitCode = 1;
 });
 
 async function shutdown(signal: string) {

@@ -10,6 +10,7 @@ import { requestId } from "./middleware/requestId.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { connectorsRouter } from "./routes/connectors.routes.js";
 import { searchRouter } from "./routes/search.routes.js";
+import { searchJobsRouter } from "./routes/searchJobs.routes.js";
 
 export function createApp() {
   const app = express();
@@ -24,6 +25,7 @@ export function createApp() {
   app.use("/api/health", healthRouter);
   app.use("/api/connectors", connectorsRouter);
   app.use("/api/search", searchRouter);
+  app.use("/api/search/jobs", searchJobsRouter);
   app.use(notFound);
   app.use(errorHandler);
   return app;

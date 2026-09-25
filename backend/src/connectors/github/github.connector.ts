@@ -8,6 +8,10 @@ import type { NormalizedItem, SourceType } from "../../types/normalizedItem.js";
 import { GitHubClient } from "./github.client.js";
 import { mapCommit, mapIssue, mapRelease, mapRepository, mapUser, rawItem } from "./github.mapper.js";
 import type { GitHubCommit, GitHubIssue, GitHubRelease, GitHubRepository, GitHubSearchResponse, GitHubUser } from "./github.types.js";
+import type { RepositorySearchBatch, RepositorySearchRequest, SearchContext } from "../../types/repositorySearch.js";
+import { streamSearchPages } from "../core/streamPages.js";
+import { normalizedItemToRepository } from "../core/repositoryAdapter.js";
+import { withRetry } from "../core/retry.js";
 
 const searchableTypes = new Set<SourceType>(["repository", "user", "organization", "issue", "pull_request"]);
 
@@ -15,6 +19,10 @@ export class GitHubConnector implements PlatformConnector {
   readonly id = "github";
   readonly name = "GitHub";
   readonly version = "0.1.0";
+  readonly homepageUrl = "https://github.com/explore";
+  readonly accessMethod = "Official GitHub REST API";
+  readonly enabled: boolean;
+  readonly authentication: "anonymous" | "token_configured";
   readonly capabilities: ConnectorCapabilities = {
     search: true, itemDetails: true, comments: false, repositories: true, users: true,
     issues: true, pullRequests: true, releases: true, commits: true, changeTracking: true
@@ -22,7 +30,11 @@ export class GitHubConnector implements PlatformConnector {
 
   #health: ConnectorHealth = { status: "healthy", message: null, lastSuccessfulRequestAt: null };
 
-  constructor(private readonly client: GitHubClient) {}
+  constructor(private readonly client: GitHubClient, options: { enabled?: boolean; tokenConfigured?: boolean } = {}) {
+    this.enabled = options.enabled ?? true;
+    this.authentication = options.tokenConfigured ? "token_configured" : "anonymous";
+    if (!this.enabled) this.#health = { status: "disabled", message: "Connector disabled by configuration", lastSuccessfulRequestAt: null };
+  }
 
   async validateConfig(): Promise<void> {
     return Promise.resolve();
@@ -37,6 +49,8 @@ export class GitHubConnector implements PlatformConnector {
   }
 
   async search(request: ConnectorSearchRequest, context: ConnectorContext): Promise<ConnectorSearchResult> {
+    if (!this.enabled) throw new ConnectorError(this.id, "disabled", "GitHub connector is disabled", false);
+    const startedAt = Date.now();
     const requestedTypes = request.types.length === 0 ? ["repository" as const] : request.types.filter((type) => searchableTypes.has(type));
     if (requestedTypes.length === 0) {
       throw new ConnectorError(this.id, "unsupported_capability", "GitHub cannot search the requested content types", false);
@@ -45,7 +59,7 @@ export class GitHubConnector implements PlatformConnector {
     const perType = Math.max(1, Math.min(100, Math.ceil(request.perPage / requestedTypes.length)));
     try {
       const results = await Promise.all(requestedTypes.map((type) => this.searchType(type, request, perType, context)));
-      this.#health = { status: "healthy", message: null, lastSuccessfulRequestAt: new Date().toISOString() };
+      this.recordSuccess(startedAt);
       const items = results.flatMap((entry) => entry.items).slice(0, request.perPage);
       const rawItems = results.flatMap((entry) => entry.rawItems).filter((raw) => items.some((item) => item.sourceId === raw.sourceId));
       const totals = results.map((entry) => entry.total).filter((value): value is number => value !== null);
@@ -62,10 +76,41 @@ export class GitHubConnector implements PlatformConnector {
     }
   }
 
+  async *searchRepositories(request: RepositorySearchRequest, context: SearchContext): AsyncGenerator<RepositorySearchBatch> {
+    if (request.collectionMode !== "all" || request.resultLimit !== null) {
+      yield* streamSearchPages(this, request, context, 100);
+      return;
+    }
+    const start = dateOnly(request.filters.createdAfter) ?? "2008-01-01";
+    const end = dateOnly(request.filters.createdBefore) ?? new Date().toISOString().slice(0, 10);
+    yield* this.streamDatePartition(request, context, start, end);
+  }
+
+  private async *streamDatePartition(request: RepositorySearchRequest, context: SearchContext, start: string, end: string): AsyncGenerator<RepositorySearchBatch> {
+    const partitionRequest = repositoryRequest(request, start, end, 1);
+    const first = await withRetry(() => this.search(partitionRequest, context), { signal: context.signal, onRetry: (retry, delayMs, error) => { if (error.code === "rate_limited") void context.onRateLimit?.({ retry, delayMs, rateLimit: this.getRateLimitStatus() }); } });
+    if ((first.total ?? 0) > 1000 && start < end) {
+      const [leftEnd, rightStart] = splitDateRange(start, end);
+      yield* this.streamDatePartition(request, context, start, leftEnd);
+      yield* this.streamDatePartition(request, context, rightStart, end);
+      return;
+    }
+    const pages = Math.max(1, Math.min(10, Math.ceil((first.total ?? first.items.length) / 100)));
+    for (let page = 1; page <= pages; page += 1) {
+      const started = Date.now();
+      const result = page === 1 ? first : await withRetry(() => this.search(repositoryRequest(request, start, end, page), context), { signal: context.signal, onRetry: (retry, delayMs, error) => { if (error.code === "rate_limited") void context.onRateLimit?.({ retry, delayMs, rateLimit: this.getRateLimitStatus() }); } });
+      yield {
+        source: "github", page, repositories: result.items.map(normalizedItemToRepository), rawRepositories: result.rawItems.map((raw) => raw.data),
+        total: result.total, hasMore: page < pages, rateLimit: result.rateLimit, partition: `created:${start}..${end}`, durationMs: Date.now() - started, providerLimited: (result.total ?? 0) > 1000 && start === end
+      };
+      if (result.items.length === 0) return;
+    }
+  }
+
   async fetchItem(request: FetchItemRequest, context: ConnectorContext): Promise<ConnectorItemResult> {
     try {
       const result = await this.fetchByType(request, context);
-      this.#health = { status: "healthy", message: null, lastSuccessfulRequestAt: new Date().toISOString() };
+      this.recordSuccess();
       return { ...result, rateLimit: this.getRateLimitStatus() };
     } catch (error) {
       this.recordFailure(error);
@@ -163,6 +208,11 @@ export class GitHubConnector implements PlatformConnector {
       this.#health = { status: "degraded", message: "Unexpected connector failure", lastSuccessfulRequestAt: this.#health.lastSuccessfulRequestAt };
     }
   }
+
+  private recordSuccess(startedAt?: number): void {
+    const checkedAt = new Date().toISOString();
+    this.#health = { status: "healthy", message: null, lastSuccessfulRequestAt: checkedAt, lastCheckedAt: checkedAt, ...(startedAt === undefined ? {} : { latencyMs: Date.now() - startedAt }) };
+  }
 }
 
 function repositoryQuery(request: ConnectorSearchRequest): string {
@@ -172,8 +222,38 @@ function repositoryQuery(request: ConnectorSearchRequest): string {
   if (filters.minStars !== undefined || filters.maxStars !== undefined) parts.push(`stars:${range(filters.minStars, filters.maxStars)}`);
   if (filters.minForks !== undefined || filters.maxForks !== undefined) parts.push(`forks:${range(filters.minForks, filters.maxForks)}`);
   if (filters.author) parts.push(`user:${filters.author}`);
+  if (filters.organization) parts.push(`org:${filters.organization}`);
+  if (filters.tags) for (const topic of filters.tags) parts.push(`topic:${topic}`);
+  if (filters.license) parts.push(`license:${filters.license}`);
+  if (filters.archived !== undefined) parts.push(`archived:${filters.archived}`);
   parts.push(dateQualifiers(request).trim());
   return parts.filter(Boolean).join(" ");
+}
+
+function dateOnly(value: string | undefined): string | null { return value ? value.slice(0, 10) : null; }
+function splitDateRange(start: string, end: string): [string, string] {
+  const startMs = Date.parse(`${start}T00:00:00Z`); const endMs = Date.parse(`${end}T00:00:00Z`);
+  const middleMs = startMs + Math.floor((endMs - startMs) / 2);
+  const left = new Date(middleMs).toISOString().slice(0, 10);
+  const right = new Date(Date.parse(`${left}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return [left, right];
+}
+function repositoryRequest(request: RepositorySearchRequest, start: string, end: string, page: number): ConnectorSearchRequest {
+  return {
+    query: request.query, types: ["repository"], page, perPage: 100,
+    filters: {
+      ...(request.filters.language?.[0] ? { language: request.filters.language[0] } : {}),
+      ...(request.filters.topic ? { tags: request.filters.topic } : {}),
+      ...(request.filters.starsMin !== undefined ? { minStars: request.filters.starsMin } : {}),
+      ...(request.filters.starsMax !== undefined ? { maxStars: request.filters.starsMax } : {}),
+      ...(request.filters.license?.[0] ? { license: request.filters.license[0] } : {}),
+      ...(request.filters.archived !== undefined ? { archived: request.filters.archived } : {}),
+      ...(request.filters.owner ? { author: request.filters.owner } : {}),
+      ...(request.filters.organization ? { organization: request.filters.organization } : {}),
+      createdAfter: `${start}T00:00:00Z`, createdBefore: `${end}T23:59:59Z`
+    },
+    sort: request.sort.field === "stars" ? "most_starred" : request.sort.field === "updated" ? "recently_updated" : request.sort.field === "created" ? request.sort.direction === "asc" ? "oldest" : "newest" : "relevance"
+  };
 }
 
 function dateQualifiers(request: ConnectorSearchRequest): string {

@@ -14,6 +14,7 @@ export interface GitHubRepository {
   full_name: string;
   description: string | null;
   html_url: string;
+  clone_url?: string;
   owner: GitHubOwner;
   language: string | null;
   stargazers_count: number;

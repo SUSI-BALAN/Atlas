@@ -16,10 +16,14 @@ function headerNumber(headers: Headers, name: string): number | null {
 
 export function rateLimitFromHeaders(headers: Headers): RateLimitStatus {
   const resetSeconds = headerNumber(headers, "x-ratelimit-reset");
+  const resetAt = resetSeconds === null ? null : new Date(resetSeconds * 1000).toISOString();
+  const remaining = headerNumber(headers, "x-ratelimit-remaining");
+  const retryHeader = headerNumber(headers, "retry-after");
   return {
     limit: headerNumber(headers, "x-ratelimit-limit"),
-    remaining: headerNumber(headers, "x-ratelimit-remaining"),
-    resetAt: resetSeconds === null ? null : new Date(resetSeconds * 1000).toISOString(),
-    retryAfterSeconds: headerNumber(headers, "retry-after")
+    remaining,
+    resetAt,
+    retryAfterSeconds: retryHeader ?? (remaining === 0 && resetSeconds !== null ? Math.max(1, resetSeconds - Math.floor(Date.now() / 1000)) : null),
+    used: headerNumber(headers, "x-ratelimit-used")
   };
 }

@@ -55,7 +55,7 @@ export class GitHubClient {
       const providerMessage = typeof body === "object" && body !== null && "message" in body && typeof body.message === "string"
         ? body.message.slice(0, 300)
         : `HTTP ${response.status}`;
-      const mapping = classifyStatus(response.status, this.#rateLimit.remaining);
+      const mapping = classifyStatus(response.status, this.#rateLimit.remaining, providerMessage);
       throw new ConnectorError("github", mapping.code, `GitHub API: ${providerMessage}`, mapping.retryable, response.status, this.#rateLimit.retryAfterSeconds);
     }
 
@@ -63,9 +63,9 @@ export class GitHubClient {
   }
 }
 
-function classifyStatus(status: number, remaining: number | null): { code: ConstructorParameters<typeof ConnectorError>[1]; retryable: boolean } {
+function classifyStatus(status: number, remaining: number | null, message: string): { code: ConstructorParameters<typeof ConnectorError>[1]; retryable: boolean } {
   if (status === 401) return { code: "authentication", retryable: false };
-  if (status === 403 && remaining === 0) return { code: "rate_limited", retryable: true };
+  if (status === 403 && (remaining === 0 || /rate limit|abuse detection/i.test(message))) return { code: "rate_limited", retryable: true };
   if (status === 403) return { code: "authorization", retryable: false };
   if (status === 404) return { code: "not_found", retryable: false };
   if (status === 422 || status === 400) return { code: "validation", retryable: false };

@@ -9,11 +9,14 @@ export interface SearchFilters {
   minForks?: number | undefined;
   maxForks?: number | undefined;
   author?: string | undefined;
+  organization?: string | undefined;
   tags?: string[] | undefined;
   createdAfter?: string | undefined;
   createdBefore?: string | undefined;
   updatedAfter?: string | undefined;
   updatedBefore?: string | undefined;
+  license?: string | undefined;
+  archived?: boolean | undefined;
 }
 
 export interface SearchQuery {

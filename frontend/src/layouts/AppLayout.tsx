@@ -1,4 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { NavLink, Outlet } from "react-router-dom";
+import { listConnectors } from "../services/api";
 
 const navigation = [
   ["/", "Overview"], ["/search", "Universal search"], ["/sources", "Sources"],
@@ -7,6 +9,11 @@ const navigation = [
 ] as const;
 
 export function AppLayout() {
+  const connectors = useQuery({ queryKey: ["connectors"], queryFn: listConnectors });
+  const available = connectors.data?.filter((connector) => connector.enabled && connector.health.status === "healthy").length ?? 0;
+  const connectorCount = connectors.data?.length ?? 0;
+  const degraded = connectorCount > 0 && available < connectorCount;
+  const sourceStatus = connectors.isPending ? "Checking sources" : connectors.isError ? "Sources unavailable" : connectorCount === 0 ? "No sources configured" : `${available}/${connectorCount} sources available`;
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -21,7 +28,7 @@ export function AppLayout() {
       <div className="workspace">
         <header className="topbar">
           <div><span className="eyebrow">Workspace</span><strong>Personal research</strong></div>
-          <div className="top-status"><span className="status-dot" />GitHub enabled</div>
+          <div className="top-status"><span className={`status-dot ${degraded || connectors.isError ? "degraded" : ""}`} />{sourceStatus}</div>
         </header>
         <main><Outlet /></main>
       </div>
