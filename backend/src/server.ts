@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
 import { connectDatabase, disconnectDatabase } from "./database/mongoose.js";
+import { classifyError } from "./utils/safeError.js";
 
 const app = createApp();
 
@@ -14,7 +15,7 @@ void connectDatabase().catch(() => {
 });
 
 server.on("error", (error: NodeJS.ErrnoException) => {
-  logger.fatal({ err: error, code: error.code, host: env.BACKEND_HOST, port: env.PORT }, "API failed to bind");
+  logger.fatal({ error: classifyError(error), host: env.BACKEND_HOST, port: env.PORT }, "API failed to bind");
   process.exitCode = 1;
 });
 

@@ -50,7 +50,9 @@ const envSchema = z.object({
   OPENAI_API_KEY: optionalSecret,
   DEEPSEEK_API_KEY: optionalSecret,
   AI_API_KEY: optionalSecret,
-  REDIS_URL: optionalSecret
+  REDIS_URL: optionalSecret,
+  BUILD_ID: z.string().trim().max(128).optional(),
+  RENDER_GIT_COMMIT: z.string().trim().regex(/^[a-f\d]{7,64}$/i).optional()
 });
 
 const apiUrl = (base: string, path: string): string => new URL(path, `${base.replace(/\/$/, "")}/`).toString();

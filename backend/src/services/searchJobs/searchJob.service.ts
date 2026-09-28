@@ -11,6 +11,7 @@ import { SearchJobModel } from "../../models/searchJob.model.js";
 import { AppError } from "../../middleware/errorHandler.js";
 import type { NormalizedRepository, RepositorySearchBatch, RepositorySearchRequest, RepositorySource } from "../../types/repositorySearch.js";
 import type { SearchJobSnapshot, SearchJobStatus, SourceProgress } from "../../types/searchJob.js";
+import { classifyError } from "../../utils/safeError.js";
 
 interface CreateInput extends Omit<RepositorySearchRequest, "sources" | "resultLimit"> { sources: RepositorySource[] | "all"; resultLimit?: number | null | undefined; }
 interface ResultPage { results: NormalizedRepository[]; nextCursor: string | null; hasMore: boolean; }
@@ -88,10 +89,19 @@ export class SearchJobService {
   async retrySource(jobId: string, source: RepositorySource, requestId: string): Promise<SearchJobSnapshot> {
     const job = await this.get(jobId);
     if (!job.request.sources.includes(source)) throw new AppError(400, "SOURCE_NOT_IN_JOB", "Source is not part of this job");
-    const controller = this.#controllers.get(jobId) ?? new AbortController();
-    this.#controllers.set(jobId, controller);
     const progress = job.sourceProgress.find((entry) => entry.source === source);
-    void this.processSource(jobId, source, job.request, requestId, controller.signal, progress?.cursor?.partition === null ? (progress.cursor.page + 1) : undefined).then(() => this.finalize(jobId, searchCacheKey(job.request)));
+    const retryableFailure = progress?.status === "failed" && progress.error?.retryable === true;
+    if (progress?.status !== "rate_limited" && !retryableFailure) {
+      throw new AppError(409, "SOURCE_NOT_RETRYABLE", "Only retryable failed or rate-limited sources can be retried");
+    }
+    const currentController = this.#controllers.get(jobId);
+    const controller = currentController && !currentController.signal.aborted ? currentController : new AbortController();
+    this.#controllers.set(jobId, controller);
+    await this.patchSource(jobId, source, { status: "queued" });
+    await this.patchJob(jobId, { status: "running", cancelRequested: false, completedAt: null });
+    void this.processSource(jobId, source, job.request, requestId, controller.signal, progress.cursor?.partition === null ? (progress.cursor.page + 1) : undefined)
+      .then(() => this.finalize(jobId, searchCacheKey(job.request)))
+      .finally(() => { if (this.#controllers.get(jobId) === controller) this.#controllers.delete(jobId); });
     return this.get(jobId);
   }
 
@@ -128,7 +138,7 @@ export class SearchJobService {
         error: { code: connectorError?.code.toUpperCase() ?? "CONNECTOR_ERROR", message: connectorError?.message ?? "Connector search failed", retryable: connectorError?.retryable ?? false },
         rateLimit: connector?.getRateLimitStatus() ?? null
       });
-      logger.warn({ err: error, connector: source, jobId }, "Search job source stopped");
+      logger.warn({ error: classifyError(error), connector: source, jobId }, "Search job source stopped");
     }
   }
 

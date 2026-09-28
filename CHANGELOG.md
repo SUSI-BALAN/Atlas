@@ -28,6 +28,7 @@ All notable project changes are recorded here.
 
 ### Fixed
 
+- Hardened Stage 0 release verification with deploy identity reporting, honest pre-probe connector health, guarded source retries, search-job creation throttling, patched query parsing, Netlify security headers, and an evidence-based audit.
 - Removed conflicting MongoDB upsert operators discovered during live persistence verification.
 - Separated programming-language storage from MongoDB text-index language override semantics.
 - Prevented unified pagination from silently skipping smaller-source records by allocating each global page across requested providers.

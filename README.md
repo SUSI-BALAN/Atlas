@@ -34,3 +34,5 @@ npm.cmd run build
 ```
 
 See [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) for current implementation status and [docs/api.md](./docs/api.md) for API contracts.
+
+The evidence-based Stage 0 feature matrix, findings, blockers, and Stage 1 acceptance criteria are recorded in [docs/stage-0-audit.md](./docs/stage-0-audit.md).

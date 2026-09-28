@@ -16,7 +16,7 @@ services:
       - key: BACKEND_HOST
         value: 0.0.0.0
       - key: FRONTEND_ORIGINS
-        value:  https://atlaslaber.netlify.app
+        value: https://atlaslaber.netlify.app
       - key: GITHUB_ENABLED
         value: "true"
       - key: GITLAB_ENABLED

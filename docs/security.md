@@ -9,10 +9,16 @@ Collect only public or explicitly authorized information through official APIs o
 - Credentials are read only by backend configuration.
 - Frontend bundles and API responses never contain provider tokens.
 - Logs redact authorization, cookies, tokens, passwords, keys, and configured secrets.
-- `.env` files are ignored; `.env.example` contains placeholders only.
+- `.env` files are ignored; the current local `.env.example` uses a synthetic localhost-only MongoDB URI and empty provider-secret placeholders.
 - Connector and AI tokens never participate in cache keys or frontend environment variables.
 
-The MongoDB credential previously committed in `.env.example` must be rotated in MongoDB Atlas. Removing it from the current tree does not revoke it or remove it from Git history; review the repository history and coordinate any history rewrite separately.
+## Credential incident status
+
+- **Current tracked-file exposure:** Stage 0 locally replaces the credential-bearing `.env.example` value with a synthetic localhost-only URI. This change remains uncommitted pending review.
+- **Historical Git exposure:** the credential-bearing value remains in repository history. Do not reproduce or use it, and do not rewrite history without explicit owner approval and coordination.
+- **Owner-confirmed revocation:** treat the credential as compromised until the owner confirms revocation or rotation and completes an access review. Stage 0 does not claim that either action has occurred.
+- **Local remediation:** redacted scanning must confirm that current public files and generated build output contain no credential-bearing URI before commit approval.
+- **Production verification:** verify only credential names, release identity, health, and redacted behavior through the approved production checklist. Never test the historical credential or disclose the replacement secret.
 
 ## Request protection
 

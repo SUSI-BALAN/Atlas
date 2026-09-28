@@ -1,23 +1,27 @@
 # Atlas Production Verification
 
-Run this checklist only after the owner has rotated the exposed MongoDB credential, created the Atlas Render service, and identified its real HTTPS origin. Never paste secrets into commands, logs, tickets, or screenshots.
+Run this checklist only after the owner has confirmed revocation or rotation of the exposed MongoDB credential, completed an access review, and identified the intended Atlas Render service and real HTTPS origin. Never paste secrets into commands, logs, tickets, or screenshots.
 
 ## Required values
 
-- `FRONTEND_ORIGIN`: `https://atlashu.netlify.app`
+- `FRONTEND_ORIGIN`: `https://atlaslaber.netlify.app`
 - `BACKEND_ORIGIN`: the actual HTTPS origin shown by the Atlas Render service
 - Netlify `VITE_API_BASE_URL`: exactly `BACKEND_ORIGIN`, without `/api`
 - Render `MONGODB_URI`: a newly issued server-side Atlas URI with an explicit database name
+- Render `RENDER_GIT_COMMIT`: platform-provided release commit SHA; this is the required primary deployment identity
+- Render `BUILD_ID`: optional non-secret supplemental release label
 
 ## Deployment gates
 
 - [ ] Render service is created from the intended repository and `main` branch.
-- [ ] Render build command is `npm ci && npm run build --workspace backend`.
+- [ ] Render build command is `npm ci --include=dev && npm run build --workspace backend`.
 - [ ] Render start command is `npm run start --workspace backend`.
 - [ ] Runtime binds `0.0.0.0` and the platform-provided `PORT`.
-- [ ] `NODE_ENV=production` and `FRONTEND_ORIGINS=https://atlashu.netlify.app`.
+- [ ] `NODE_ENV=production` and `FRONTEND_ORIGINS=https://atlaslaber.netlify.app`.
 - [ ] `MONGODB_URI` is configured as a Render secret and is not the exposed historical credential.
 - [ ] `/api/health/ready` returns 200 before the deploy is considered healthy.
+- [ ] `/api/version` returns a non-null `commit` from `RENDER_GIT_COMMIT` that exactly matches the intended release commit.
+- [ ] If `BUILD_ID` is configured, `/api/version` returns the expected non-secret `buildId`; a null `buildId` is valid when it is not configured.
 - [ ] Netlify is linked to the intended repository and uses the root `netlify.toml`.
 - [ ] Netlify has production-scoped `VITE_API_BASE_URL=BACKEND_ORIGIN` before the production build.
 - [ ] Netlify publishes `frontend/dist` from the repository root.
@@ -36,7 +40,7 @@ Direct routing is the default: the browser uses `VITE_API_BASE_URL` to call Rend
 
 - [ ] `GET BACKEND_ORIGIN/api/health` returns JSON, a request ID, `status=healthy`, `database=connected`, and `databaseReady=true`.
 - [ ] `GET BACKEND_ORIGIN/api/health/ready` returns HTTP 200 and `status=ready`.
-- [ ] The same health request with `Origin: https://atlashu.netlify.app` returns `Access-Control-Allow-Origin: https://atlashu.netlify.app`.
+- [ ] The same health request with `Origin: https://atlaslaber.netlify.app` returns `Access-Control-Allow-Origin: https://atlaslaber.netlify.app`.
 - [ ] A request with an unapproved origin does not receive an allow-origin header.
 - [ ] No response exposes credentials, connection strings, authorization headers, or production stack traces.
 
@@ -44,7 +48,7 @@ Direct routing is the default: the browser uses `VITE_API_BASE_URL` to call Rend
 
 - [ ] `/api/connectors` lists GitHub, GitLab, Codeberg, Gitea, and Forgejo in deterministic order.
 - [ ] Each enabled connector completes a small real repository search and returns original source URLs.
-- [ ] Disabled or unconfigured connectors display `disabled` or the real failure state, never fabricated availability.
+- [ ] Unchecked connectors display `unavailable`; disabled or failed connectors display their real state, never fabricated availability.
 - [ ] Authentication mode is accurate without revealing tokens.
 - [ ] Real 403/429 responses preserve provider rate-limit metadata and retry timing.
 - [ ] Fast and Deep searches preserve successful sources when another source fails.

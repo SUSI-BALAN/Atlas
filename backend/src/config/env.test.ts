@@ -3,8 +3,8 @@ import { parseEnvironment } from "./env.js";
 
 describe("environment configuration", () => {
   it("uses Render-compatible binding and explicit production origins", () => {
-    const value = parseEnvironment({ NODE_ENV: "production", PORT: "10000", FRONTEND_ORIGINS: "https://atlashu.netlify.app" });
-    expect(value).toMatchObject({ BACKEND_HOST: "0.0.0.0", PORT: 10000, FRONTEND_ORIGINS: ["https://atlashu.netlify.app"] });
+    const value = parseEnvironment({ NODE_ENV: "production", PORT: "10000", FRONTEND_ORIGINS: "https://atlaslaber.netlify.app" });
+    expect(value).toMatchObject({ BACKEND_HOST: "0.0.0.0", PORT: 10000, FRONTEND_ORIGINS: ["https://atlaslaber.netlify.app"] });
   });
 
   it("keeps both supported local Vite origins in development", () => {

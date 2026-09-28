@@ -1,6 +1,7 @@
 import type { PlatformConnector } from "../../connectors/core/connector.interface.js";
 import type { RawConnectorItem } from "../../connectors/core/connector.types.js";
 import { logger } from "../../config/logger.js";
+import { classifyError } from "../../utils/safeError.js";
 import { isDatabaseConnected } from "../../database/mongoose.js";
 import { NormalizedItemModel } from "../../models/normalizedItem.model.js";
 import { RawItemModel } from "../../models/rawItem.model.js";
@@ -42,6 +43,6 @@ export async function persistCollectedItems(
       );
     }));
   } catch (error) {
-    logger.error({ err: error, requestId, connector: connector.id }, "Failed to persist collected items");
+    logger.error({ error: classifyError(error), requestId, connector: connector.id }, "Failed to persist collected items");
   }
 }

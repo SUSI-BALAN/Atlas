@@ -38,3 +38,11 @@ Job states are `queued`, `running`, `rate_limited`, `partially_complete`, `compl
 - `GET /api/health`
 
 Connector responses expose enabled state, anonymous/token-configured authentication, capabilities, sanitized rate-limit status, health, latency, version, and last check. Tokens are never returned.
+
+An enabled connector reports `unavailable` until a real provider request completes. Registry presence alone is not a provider health check.
+
+## Release identity
+
+`GET /api/version` returns the application version, the Render commit SHA as the primary deployment identity, and an optional non-secret build ID. Production approval requires the `commit` value to match hosting deploy metadata; `buildId` may be null. Health/readiness alone does not prove which commit is running.
+
+Search-job creation is limited to 20 attempts per client address in 15 minutes. Limit responses use the standard error envelope and `RATE_LIMITED` code.

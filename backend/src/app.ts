@@ -5,15 +5,18 @@ import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 import { env } from "./config/env.js";
 import { logger } from "./config/logger.js";
-import { errorHandler, notFound } from "./middleware/errorHandler.js";
+import { createErrorHandler, notFound } from "./middleware/errorHandler.js";
 import { requestId } from "./middleware/requestId.js";
 import { healthRouter } from "./routes/health.routes.js";
 import { connectorsRouter } from "./routes/connectors.routes.js";
 import { searchRouter } from "./routes/search.routes.js";
 import { searchJobsRouter } from "./routes/searchJobs.routes.js";
+import { versionRouter } from "./routes/version.routes.js";
 
-export function createApp() {
+export function createApp(options: { nodeEnv?: "development" | "test" | "production" } = {}) {
   const app = express();
+  const nodeEnv = options.nodeEnv ?? env.NODE_ENV;
+  if (nodeEnv === "production") app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(requestId);
   app.use(pinoHttp({ logger }));
@@ -28,11 +31,24 @@ export function createApp() {
   app.use(express.json({ limit: "256kb" }));
   app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
 
+  const searchJobCreationLimit = rateLimit({
+    windowMs: 15 * 60_000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    handler: (_req, res) => res.status(429).json({
+      success: false,
+      error: { code: "RATE_LIMITED", message: "Too many search jobs were requested; try again later" },
+      meta: { requestId: res.locals.requestId }
+    })
+  });
+
   app.use("/api/health", healthRouter);
+  app.use("/api/version", versionRouter);
   app.use("/api/connectors", connectorsRouter);
   app.use("/api/search", searchRouter);
-  app.use("/api/search/jobs", searchJobsRouter);
+  app.use("/api/search/jobs", (req, res, next) => req.method === "POST" && req.path === "/" ? searchJobCreationLimit(req, res, next) : next(), searchJobsRouter);
   app.use(notFound);
-  app.use(errorHandler);
+  app.use(createErrorHandler(nodeEnv));
   return app;
 }

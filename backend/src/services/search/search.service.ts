@@ -2,6 +2,7 @@ import { ConnectorError } from "../../connectors/core/connector.errors.js";
 import type { ConnectorSearchResult, RateLimitStatus } from "../../connectors/core/connector.types.js";
 import type { ConnectorRegistry } from "../../connectors/core/connectorRegistry.js";
 import { logger } from "../../config/logger.js";
+import { classifyError } from "../../utils/safeError.js";
 import { isDatabaseConnected } from "../../database/mongoose.js";
 import { SearchHistoryModel } from "../../models/searchHistory.model.js";
 import type { NormalizedItem } from "../../types/normalizedItem.js";
@@ -48,7 +49,7 @@ export class SearchService {
         const safe = error instanceof ConnectorError
           ? { code: error.code.toUpperCase(), message: error.message, retryable: error.retryable }
           : { code: "CONNECTOR_ERROR", message: "Connector search failed", retryable: false };
-        logger.warn({ err: error, source, requestId }, "Search connector failed");
+        logger.warn({ error: classifyError(error), source, requestId }, "Search connector failed");
         return failure(source, safe.code, safe.message, safe.retryable);
       }
     });
@@ -80,7 +81,7 @@ export class SearchService {
     try {
       await SearchHistoryModel.create({ ...query, resultCount: result.results.length, status: result.status, requestId, searchedAt: new Date() });
     } catch (error) {
-      logger.error({ err: error, requestId }, "Failed to persist search history");
+      logger.error({ error: classifyError(error), requestId }, "Failed to persist search history");
     }
   }
 }

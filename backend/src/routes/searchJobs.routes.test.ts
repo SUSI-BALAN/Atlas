@@ -21,4 +21,19 @@ describe("search job routes", () => {
     const response = await request(createApp()).get("/api/search/jobs/not-an-id/results?cursor=bad");
     expect(response.status).toBe(400);
   });
+
+  it("rate limits repeated search job creation attempts", async () => {
+    const app = createApp();
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const response = await request(app).post("/api/search/jobs").send({ query: "" });
+      expect(response.status).toBe(400);
+    }
+    const response = await request(app).post("/api/search/jobs").send({ query: "" });
+    expect(response.status).toBe(429);
+    expect(response.body).toEqual(expect.objectContaining({
+      success: false,
+      error: expect.objectContaining({ code: "RATE_LIMITED" }),
+      meta: { requestId: expect.any(String) }
+    }));
+  });
 });
