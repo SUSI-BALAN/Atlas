@@ -13,6 +13,8 @@ Browser -> Search job API -> bounded connector scheduler
                                       -> MongoDB bulk upsert -> paged UI/export
 ```
 
+The browser selects jobs through `/search?job=<jobId>` and optionally preserves the current result cursor in the query string. Repository detail routes carry only validated job/result identifiers; provider tokens, API origins, and request state never enter navigation URLs.
+
 ## Layer rules
 
 1. Routes validate transport input and format response envelopes.
@@ -31,9 +33,19 @@ Browser -> Search job API -> bounded connector scheduler
 6. Bulk upsert the batch, update durable source progress, and make it immediately available to cursor-paged UI and streaming exports.
 7. Continue until exhausted, explicitly limited by a provider, cancelled, or failed. Independent sources continue after a partial failure.
 
+## Restart reconciliation
+
+The connector scheduler remains process-local. Once MongoDB connects at API startup, Atlas finds jobs in `queued`, `running`, or `rate_limited` and applies a conservative transition:
+
+1. Never issue provider requests automatically.
+2. Preserve all `repository_results`, totals, and source cursors.
+3. Mark each nonterminal source `failed` with retryable `PROCESS_INTERRUPTED`.
+4. Mark the job `partially_complete` if any source already completed; otherwise mark it `failed`.
+5. Let the user explicitly retry a source. Linear cursors resume after the last durable page; identity upserts protect providers that must revisit work.
+
 ## Runtime decisions
 
-- Search documents and results are durable, while active scheduling remains owned by the local API process. A process restart does not yet automatically re-enqueue interrupted jobs.
+- Search documents and results are durable, while active scheduling remains owned by the local API process. Startup reconciliation exposes interrupted work safely instead of automatically replaying it.
 - MongoDB failure produces explicit degraded health. Bounded preview/deep jobs use a bounded in-process fallback; all-results jobs require MongoDB.
 - Request IDs flow through logs, raw records, normalized provenance, and job/source status.
 - Connector IDs and standardized source types are stable serialized identifiers.

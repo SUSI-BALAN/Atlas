@@ -20,12 +20,16 @@ All JSON routes use `{ success, data, meta }` envelopes. Errors use `{ success: 
 `sources: "all"` resolves to currently enabled repository connectors. `resultLimit: null` with `collectionMode: "all"` means no internal result cap. Provider API limits still apply. All mode returns `DATABASE_REQUIRED` when MongoDB is unavailable.
 
 - `GET /api/search/jobs/:jobId` returns job status, total unique source identities, and per-source fetched/page/rate-limit/error progress.
+- `GET /api/search/jobs?cursor=<job-id>&limit=20` returns newest-first safe job summaries as `{ jobs, nextCursor, hasMore }`. The default is 20 and the maximum is 50. Summaries contain `jobId`, query, requested sources, collection mode, status, total, timestamps, and cached state only.
 - `GET /api/search/jobs/:jobId/results?cursor=<object-id>&limit=50` returns `{ results, nextCursor, hasMore }`; limit is capped at 100.
+- `GET /api/search/jobs/:jobId/repositories/:repositoryId` returns one normalized persisted repository only when it belongs to the named job. Both IDs are validated. Missing and wrong-job records return `REPOSITORY_RESULT_NOT_FOUND`; raw provider payloads, provenance request IDs, and credentials are excluded.
 - `POST /api/search/jobs/:jobId/cancel` aborts active requests and retry waits.
 - `POST /api/search/jobs/:jobId/sources/:source/retry` restarts a failed or rate-limited source while persisted identity deduplication prevents duplicate rows.
 - `GET /api/search/jobs/:jobId/export?format=json|csv` streams the stored dataset from the backend.
 
 Job states are `queued`, `running`, `rate_limited`, `partially_complete`, `completed`, `cancelled`, and `failed`. One failed source does not discard successful source results.
+
+After an API restart, persisted nonterminal sources are changed to retryable failed entries with error code `PROCESS_INTERRUPTED`. Provider calls are not replayed automatically. Existing results and cursors remain available, and the existing source retry route is the explicit recovery action.
 
 ## Legacy synchronous search
 

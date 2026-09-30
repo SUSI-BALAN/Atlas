@@ -1,4 +1,4 @@
-import type { ConnectorSummary, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SearchJob, SearchRequest, SearchResponse } from "../types/api";
+import type { ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse } from "../types/api";
 
 interface Envelope<T> { success: boolean; data: T; error?: { message: string; details?: unknown }; meta?: { requestId?: string } }
 
@@ -50,8 +50,10 @@ export function health(): Promise<{ status: string; database: string }> {
 }
 
 export function createSearchJob(request: RepositorySearchJobRequest): Promise<SearchJob> { return api("/api/search/jobs", { method: "POST", body: JSON.stringify(request) }); }
+export function listSearchJobs(cursor?: string, limit = 20): Promise<SearchJobHistoryPage> { const query = new URLSearchParams({ limit: String(limit) }); if (cursor) query.set("cursor", cursor); return api(`/api/search/jobs?${query}`); }
 export function getSearchJob(jobId: string): Promise<SearchJob> { return api(`/api/search/jobs/${jobId}`); }
 export function getSearchJobResults(jobId: string, cursor?: string, limit = 50): Promise<RepositoryResultPage> { const query = new URLSearchParams({ limit: String(limit) }); if (cursor) query.set("cursor", cursor); return api(`/api/search/jobs/${jobId}/results?${query}`); }
+export function getRepositoryResult(jobId: string, repositoryId: string): Promise<NormalizedRepository> { return api(`/api/search/jobs/${jobId}/repositories/${repositoryId}`); }
 export function cancelSearchJob(jobId: string): Promise<SearchJob> { return api(`/api/search/jobs/${jobId}/cancel`, { method: "POST" }); }
 export function retrySearchSource(jobId: string, source: RepositorySource): Promise<SearchJob> { return api(`/api/search/jobs/${jobId}/sources/${source}/retry`, { method: "POST" }); }
 export function searchExportUrl(jobId: string, format: "json" | "csv"): string { return buildApiUrl(`/api/search/jobs/${jobId}/export?format=${format}`); }

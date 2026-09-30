@@ -8,7 +8,7 @@ describe("search persistence indexes", () => {
     expect(RepositoryResultModel.schema.indexes()).toEqual(expect.arrayContaining([
       [{ jobId: 1, source: 1, externalId: 1 }, expect.objectContaining({ unique: true })]
     ]));
-    expect(SearchJobModel.schema.indexes()).toEqual(expect.arrayContaining([[{ createdAt: -1 }, expect.any(Object)]]));
+    expect(SearchJobModel.schema.indexes()).toEqual(expect.arrayContaining([[{ createdAt: -1, _id: -1 }, expect.any(Object)]]));
     expect(SearchCacheModel.schema.indexes()).toEqual(expect.arrayContaining([
       [{ expiresAt: 1 }, expect.objectContaining({ expireAfterSeconds: 0 })]
     ]));

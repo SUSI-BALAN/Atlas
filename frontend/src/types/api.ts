@@ -66,7 +66,7 @@ export interface RepositorySearchJobRequest {
   resultLimit?: number | null;
 }
 export interface NormalizedRepository {
-  id: string; source: RepositorySource; externalId: string; owner: string; name: string; fullName: string;
+  id: string; repositoryId?: string; source: RepositorySource; externalId: string; owner: string; name: string; fullName: string;
   description: string | null; repositoryUrl: string; cloneUrl: string | null; defaultBranch: string | null;
   language: string | null; languages: string[]; topics: string[]; stars: number; forks: number;
   watchers: number | null; openIssues: number | null; license: string | null; createdAt: string | null;
@@ -87,3 +87,8 @@ export interface SearchJob {
   createdAt: string; startedAt: string | null; completedAt: string | null;
 }
 export interface RepositoryResultPage { results: NormalizedRepository[]; nextCursor: string | null; hasMore: boolean }
+export interface SearchJobSummary {
+  jobId: string; query: string; requestedSources: RepositorySource[]; collectionMode: RepositorySearchJobRequest["collectionMode"];
+  status: SearchJob["status"]; totalUnique: number; createdAt: string; startedAt: string | null; completedAt: string | null; cached: boolean;
+}
+export interface SearchJobHistoryPage { jobs: SearchJobSummary[]; nextCursor: string | null; hasMore: boolean }

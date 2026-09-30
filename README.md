@@ -25,6 +25,8 @@ MongoDB is required for **All available results** mode. When MongoDB is unavaila
 
 Results are normalized and persisted one batch at a time, displayed through cursor pagination, and exportable as streaming JSON or CSV. GitHub search windows over 1,000 matches are recursively partitioned by creation date; a single-day partition can still be provider-limited and is reported honestly.
 
+Universal Search is URL-driven: `/search?job=<jobId>` restores a persisted job after refresh and browser navigation. The page includes bounded, newest-first search history, job-scoped repository detail views, explicit partial/rate-limit/provider-limit states, and cursor-aware return navigation. On API startup, interrupted durable jobs are never replayed automatically; active sources become retryable interrupted failures while previously persisted results remain intact.
+
 ## Verification
 
 ```powershell
@@ -34,5 +36,7 @@ npm.cmd run build
 ```
 
 See [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) for current implementation status and [docs/api.md](./docs/api.md) for API contracts.
+
+The Stage 1 implementation and handoff are recorded in [docs/stage-1-search-workflow.md](./docs/stage-1-search-workflow.md).
 
 The evidence-based Stage 0 feature matrix, findings, blockers, and Stage 1 acceptance criteria are recorded in [docs/stage-0-audit.md](./docs/stage-0-audit.md).

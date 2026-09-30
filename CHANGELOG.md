@@ -6,6 +6,8 @@ All notable project changes are recorded here.
 
 ### Added
 
+- Stage 1 durable search workflow: URL-restored jobs and result cursors, bounded cursor-paged search history, normalized job-scoped repository details, responsive state messaging, and conservative interrupted-job reconciliation with explicit retry.
+
 - Durable asynchronous repository search jobs with progressive per-source status, cancellation, source retry, cursor-paged results, and backend-streamed JSON/CSV export.
 - Uncapped all-available mode that consumes provider pages sequentially without an application-side result ceiling, while requiring MongoDB to avoid unbounded process memory.
 - GitHub creation-date query partitioning for its 1,000-result search window, GitLab header pagination, and shared Gitea/Forgejo pagination for Codeberg, Gitea.com, and Forgejo.

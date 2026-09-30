@@ -4,6 +4,7 @@ import { AppLayout } from "../layouts/AppLayout";
 import { DashboardPage } from "../pages/DashboardPage";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { SearchPage } from "../pages/SearchPage";
+import { RepositoryDetailPage } from "../pages/RepositoryDetailPage";
 import { SourcesPage } from "../pages/SourcesPage";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
@@ -16,6 +17,7 @@ export function App() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="search" element={<SearchPage />} />
+            <Route path="search/jobs/:jobId/repositories/:repositoryId" element={<RepositoryDetailPage />} />
             <Route path="sources" element={<SourcesPage />} />
             {[
               ["saved", "Saved items"], ["collections", "Collections"], ["watchlists", "Watchlists"],

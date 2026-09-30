@@ -3,9 +3,9 @@ import { z } from "zod";
 import { searchJobService } from "../composition.js";
 import type { SearchJobService } from "../services/searchJobs/searchJob.service.js";
 import { repositorySources } from "../types/repositorySearch.js";
-import { jobResultsQuerySchema, searchJobSchema } from "../validators/searchJob.validator.js";
+import { jobHistoryQuerySchema, jobResultsQuerySchema, searchJobSchema } from "../validators/searchJob.validator.js";
 
-type SearchJobsService = Pick<SearchJobService, "create" | "get" | "results" | "cancel" | "retrySource">;
+type SearchJobsService = Pick<SearchJobService, "create" | "get" | "list" | "results" | "repository" | "cancel" | "retrySource">;
 
 export function createSearchJobsRouter(service: SearchJobsService = searchJobService) {
   const router = Router();
@@ -18,6 +18,13 @@ export function createSearchJobsRouter(service: SearchJobsService = searchJobSer
     } catch (error) { next(error); }
   });
 
+  router.get("/", async (req, res, next) => {
+    try {
+      const query = jobHistoryQuerySchema.parse(req.query);
+      res.json({ success: true, data: await service.list(query.cursor, query.limit), meta: { requestId: res.locals.requestId } });
+    } catch (error) { next(error); }
+  });
+
   router.get("/:jobId", async (req, res, next) => {
     try { res.json({ success: true, data: await service.get(req.params.jobId), meta: { requestId: res.locals.requestId } }); } catch (error) { next(error); }
   });
@@ -27,6 +34,10 @@ export function createSearchJobsRouter(service: SearchJobsService = searchJobSer
       const query = jobResultsQuerySchema.parse(req.query);
       res.json({ success: true, data: await service.results(req.params.jobId, query.cursor, query.limit), meta: { requestId: res.locals.requestId } });
     } catch (error) { next(error); }
+  });
+
+  router.get("/:jobId/repositories/:repositoryId", async (req, res, next) => {
+    try { res.json({ success: true, data: await service.repository(req.params.jobId, req.params.repositoryId), meta: { requestId: res.locals.requestId } }); } catch (error) { next(error); }
   });
 
   router.post("/:jobId/cancel", async (req, res, next) => {

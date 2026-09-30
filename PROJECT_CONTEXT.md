@@ -25,6 +25,8 @@ Atlas is a local-first Multi-Forge repository research platform. It collects pub
 - Identity deduplication by `(jobId, source, externalId)` and exact canonical-URL duplicate detection without deleting mirrors/forks.
 - Search cancellation, failed-source retry, partial completion, cursor-paged results, and streaming JSON/CSV export.
 - Progressive Universal Search UI with source selection, filters, modes, live per-source progress, cancellation, retry, partial results, 50-row pages, and export.
+- URL-persisted active jobs and result cursors, bounded newest-first durable history, and job-scoped normalized repository detail pages.
+- Startup reconciliation marks queued/running/rate-limited persisted sources as retryable `PROCESS_INTERRUPTED` failures without replaying providers or removing collected repository results.
 - Sources UI reports enabled/disabled, real health, authentication mode, search support, sanitized rate limits/reset, latency, connector version, and last check.
 - `AI_PROVIDER=none` leaves all collection paths functional; AI configuration is optional and server-side only.
 
@@ -34,9 +36,13 @@ Canonical names are documented in `.env.example`: backend host/port/origin, Mong
 
 GitHub is enabled by default. GitLab, Codeberg, Gitea, and Forgejo are visible but disabled until their `*_ENABLED=true` flags are set. Tokens are optional and never returned to the browser.
 
+## Restart recovery
+
+After MongoDB connects, startup reconciliation inspects durable jobs in `queued`, `running`, or `rate_limited`. Atlas does not automatically replay provider requests. Each nonterminal source is changed to a retryable failed source with code `PROCESS_INTERRUPTED`; a job becomes `partially_complete` when another source had completed, otherwise `failed`. Existing cursors and `repository_results` are retained. The user can explicitly retry an affected source, using the existing cursor-aware retry behavior and unique identity index.
+
 ## Runtime limitations
 
-- Search/result documents are durable, but the local in-process scheduler does not automatically re-enqueue an interrupted running job after an API process restart. Moving scheduling ownership to a queue is a future scale step.
+- Search/result documents are durable, but scheduling remains process-local. Interrupted work requires an explicit user retry after conservative startup reconciliation. Moving scheduling ownership to a durable queue is a future scale step.
 - Retry-source resumes after the durable page cursor for linear GitLab/Gitea-style pagination; GitHub date-partition retries may revisit a partition, with persisted identity upserts preventing duplicate results.
 - When MongoDB is down, Fast/Deep jobs use bounded in-process storage and All available mode returns `DATABASE_REQUIRED` instead of risking unbounded memory.
 - Query expansion was not previously implemented. `MAX_EXPANDED_QUERIES` is validated/configured but collection does not depend on AI or invent expansions.

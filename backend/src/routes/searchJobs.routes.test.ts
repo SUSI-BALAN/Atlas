@@ -1,6 +1,9 @@
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
+import { createSearchJobsRouter } from "./searchJobs.routes.js";
+import express from "express";
+import { createErrorHandler, AppError } from "../middleware/errorHandler.js";
 
 describe("search job routes", () => {
   it("validates the unified job request", async () => {
@@ -35,5 +38,24 @@ describe("search job routes", () => {
       error: expect.objectContaining({ code: "RATE_LIMITED" }),
       meta: { requestId: expect.any(String) }
     }));
+  });
+
+  it("bounds search history pagination", async () => {
+    const list = async () => ({ jobs: [], nextCursor: null, hasMore: false });
+    const app = express();
+    app.use("/api/search/jobs", createSearchJobsRouter({ list } as never));
+    app.use(createErrorHandler("test"));
+    expect((await request(app).get("/api/search/jobs?limit=51")).status).toBe(400);
+    expect((await request(app).get("/api/search/jobs?limit=50")).status).toBe(200);
+  });
+
+  it("keeps repository detail lookups scoped to the requested job", async () => {
+    const repository = async () => { throw new AppError(404, "REPOSITORY_RESULT_NOT_FOUND", "Repository result was not found for this search job"); };
+    const app = express();
+    app.use("/api/search/jobs", createSearchJobsRouter({ repository } as never));
+    app.use(createErrorHandler("test"));
+    const response = await request(app).get("/api/search/jobs/507f1f77bcf86cd799439011/repositories/507f191e810c19729de860ea");
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe("REPOSITORY_RESULT_NOT_FOUND");
   });
 });
