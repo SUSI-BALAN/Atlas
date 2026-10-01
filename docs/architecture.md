@@ -54,6 +54,8 @@ The connector scheduler remains process-local. Once MongoDB connects at API star
 
 ## Evolution points
 
+Stage 4 introduces a dedicated analytics service between Express routes and Mongoose models. Routes validate bounded dates, limits, and provider enums; the service owns aggregation pipelines and returns source-neutral DTOs. Workspace-owned pipelines match `workspaceKey: "default"` before lookup/group stages, while legacy search/result analytics explicitly describe the shared Atlas dataset. The frontend requests sections independently so an optional report failure does not make the page unusable.
+
 Stage 2 places saved repositories, collections, and membership behind a workspace service boundary. Saves copy only allowlisted normalized fields from job-scoped persisted results. Collections use join records rather than embedding repository documents. `workspaceKey: "default"` is an explicit future ownership partition, not a privacy claim.
 
 - Search repository can be replaced by Meilisearch/OpenSearch/Elasticsearch indexing.

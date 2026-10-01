@@ -1,4 +1,4 @@
-import type { ChangeEvent, Collection, ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SavedPage, SavedRepository, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse, WatchedRepository, Watchlist, WatchRun } from "../types/api";
+import type { AnalyticsLanguages, AnalyticsSources, AnalyticsSummary, ChangeAnalytics, ChangeEvent, Collection, ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SavedAnalytics, SavedPage, SavedRepository, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse, WatchedRepository, Watchlist, WatchlistAnalytics, WatchRun } from "../types/api";
 
 interface Envelope<T> { success: boolean; data: T; error?: { message: string; details?: unknown }; meta?: { requestId?: string } }
 
@@ -83,3 +83,10 @@ export function removeFromWatchlist(id:string,savedId:string):Promise<{deleted:b
 export function checkWatchlist(id:string):Promise<WatchRun>{return api(`/api/watchlists/${id}/check`,{method:"POST"})}
 export function listWatchRuns(id:string):Promise<{runs:WatchRun[];nextCursor:string|null;hasMore:boolean}>{return api(`/api/watchlists/${id}/runs?limit=20`)}
 export function listChanges(params:Record<string,string|undefined>={}):Promise<{changes:ChangeEvent[];nextCursor:string|null;hasMore:boolean}>{const q=new URLSearchParams({limit:"20"});for(const[k,v]of Object.entries(params))if(v)q.set(k,v);return api(`/api/changes?${q}`)}
+const analyticsQuery=(params:Record<string,string|undefined>)=>{const q=new URLSearchParams();for(const[k,v]of Object.entries(params))if(v)q.set(k,v);return q.toString()?`?${q}`:""};
+export function analyticsSummary(params:Record<string,string|undefined>):Promise<AnalyticsSummary>{return api(`/api/analytics/summary${analyticsQuery(params)}`)}
+export function analyticsSources():Promise<AnalyticsSources>{return api("/api/analytics/sources")}
+export function analyticsLanguages(limit=10):Promise<AnalyticsLanguages>{return api(`/api/analytics/languages?limit=${limit}`)}
+export function analyticsSaved(limit=10):Promise<SavedAnalytics>{return api(`/api/analytics/saved?limit=${limit}`)}
+export function analyticsWatchlists(params:Record<string,string|undefined>):Promise<WatchlistAnalytics>{return api(`/api/analytics/watchlists${analyticsQuery(params)}`)}
+export function analyticsChanges(params:Record<string,string|undefined>):Promise<ChangeAnalytics>{return api(`/api/analytics/changes${analyticsQuery(params)}`)}

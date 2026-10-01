@@ -1,5 +1,13 @@
 # Changelog
 
+## Stage 4 - Analytics and insights
+
+- Replaced the Analytics placeholder with real persisted overview, source, language, saved-research, monitoring, and change-timeline metrics.
+- Added a dedicated workspace-aware aggregation service and eight validated `/api/analytics` reports.
+- Added bounded ISO date ranges, provider enums, deterministic distributions, explicit unknown-language handling, and safe empty/error behavior.
+- Added accessible responsive text-backed charts and independent section caching/failure states without a chart dependency.
+- Added focused backend and frontend analytics tests while preserving all Stage 0–3 suites.
+
 ## Stage 3 - Watchlists and changes
 
 - Added durable watchlists, memberships, watch state, change events, and check runs.

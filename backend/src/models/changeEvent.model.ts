@@ -6,6 +6,7 @@ const changeEventSchema = new Schema({
   previousFingerprint: { type: String, required: true }, currentFingerprint: { type: String, required: true }, checkRunId: { type: Schema.Types.ObjectId, required: true }
 }, { timestamps: true, collection: "change_events", minimize: false });
 changeEventSchema.index({ workspaceKey: 1, detectedAt: -1, _id: -1 });
+changeEventSchema.index({ workspaceKey: 1, source: 1, detectedAt: -1 });
 changeEventSchema.index({ workspaceKey: 1, watchlistId: 1, detectedAt: -1, _id: -1 });
 changeEventSchema.index({ workspaceKey: 1, savedId: 1, detectedAt: -1, _id: -1 });
 changeEventSchema.index({ workspaceKey: 1, checkRunId: 1, savedId: 1 }, { unique: true });

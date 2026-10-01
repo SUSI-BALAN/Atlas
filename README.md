@@ -31,6 +31,8 @@ Universal Search is URL-driven: `/search?job=<jobId>` restores a persisted job a
 
 Repositories can be saved from results or detail pages, annotated with plain-text notes and normalized tags, and organized into reusable collections. Saved data and collections are currently workspace-wide because authentication is not yet implemented.
 
+The `/analytics` workspace presents real descriptive metrics from persisted searches, collected results, saved research, collections, watchlists, check runs, and change events. Date ranges are bounded to 365 days, unknown languages remain explicit, and empty installations never receive fabricated sample values. Analytics remain workspace-wide under `workspaceKey = "default"`.
+
 ## Verification
 
 ```powershell
@@ -43,5 +45,7 @@ See [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) for current implementation status
 
 The Stage 1 implementation and handoff are recorded in [docs/stage-1-search-workflow.md](./docs/stage-1-search-workflow.md).
 Stage 2 is documented in [docs/stage-2-saved-collections.md](./docs/stage-2-saved-collections.md).
+Stage 3 is documented in [docs/stage-3-watchlists-changes.md](./docs/stage-3-watchlists-changes.md).
+Stage 4 is documented in [docs/stage-4-analytics-insights.md](./docs/stage-4-analytics-insights.md).
 
 The evidence-based Stage 0 feature matrix, findings, blockers, and Stage 1 acceptance criteria are recorded in [docs/stage-0-audit.md](./docs/stage-0-audit.md).

@@ -51,6 +51,12 @@ After MongoDB connects, startup reconciliation inspects durable jobs in `queued`
 - When MongoDB is down, Fast/Deep jobs use bounded in-process storage and All available mode returns `DATABASE_REQUIRED` instead of risking unbounded memory.
 - Query expansion was not previously implemented. `MAX_EXPANDED_QUERIES` is validated/configured but collection does not depend on AI or invent expansions.
 
+## Stage 4 analytics
+
+The Analytics placeholder is replaced by bounded, descriptive aggregation over persisted Atlas data. A dedicated analytics service exposes summary, source, language, saved-research, collection, watchlist, change, and search reports. Source distributions are explicitly Atlas-dataset distributions, null languages are shown as `Unknown`, and date reports default to 30 days with a 365-day maximum. The responsive frontend uses independently failing TanStack Query sections and accessible text-backed HTML bars.
+
+Analytics for saved/monitoring records enforce `workspaceKey: "default"`. Search jobs and repository results are older shared-dataset models without a workspace key; Stage 4 documents that boundary rather than implying private ownership. No AI, authentication, export, production scheduler, or infrastructure work is included.
+
 ## Verification on 2026-08-30
 
 - `npm.cmd run typecheck`: passed for backend and frontend.

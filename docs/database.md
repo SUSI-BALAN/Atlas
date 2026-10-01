@@ -23,3 +23,12 @@ The earlier `rawItems`, `normalizedItems`, and `searchHistory` collections remai
 - `collection_memberships`: reference-only join rows. Unique `{ workspaceKey, collectionId, savedId }` prevents duplicates; the reverse index supports cleanup.
 
 Unsave removes memberships. Deleting a collection removes memberships but never saved repositories. The constant workspace partition can become an authenticated owner/team key later.
+
+## Analytics query support
+
+Stage 4 reads existing persisted collections directly and creates no analytics snapshot collection. It adds two indexes tied to implemented filters:
+
+- `change_events`: `{ workspaceKey: 1, source: 1, detectedAt: -1 }` supports source-filtered date-range reports; the existing workspace/date index supports unfiltered timelines.
+- `watch_check_runs`: `{ workspaceKey: 1, status: 1, createdAt: -1 }` supports status/time monitoring aggregation.
+
+Saved, collection, membership, and watchlist analytics reuse their existing workspace indexes. Collection/watchlist lists are capped at 25 and use aggregation lookups rather than N+1 reads. Search jobs and repository results are the pre-workspace shared Atlas dataset; analytics do not fabricate a workspace field for them.

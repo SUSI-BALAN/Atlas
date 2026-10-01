@@ -71,3 +71,18 @@ Notes are plain text capped at 4,000 characters. Tags are trimmed, lowercase, un
 - `POST/DELETE /api/collections/:collectionId/repositories/:savedId` adds or removes idempotent membership.
 
 Deleting a collection never deletes saved repositories. These APIs are workspace-wide until authentication is implemented.
+
+## Analytics
+
+All routes return the standard `{ success, data, meta: { requestId } }` envelope.
+
+- `GET /api/analytics/summary?from=<ISO>&to=<ISO>` returns persisted search/result/saved/collection/watchlist/change counts and latest activity dates.
+- `GET /api/analytics/sources` returns deterministic Atlas dataset source counts and percentages.
+- `GET /api/analytics/languages?limit=10` returns the bounded top primary languages; missing values are `Unknown` and `excludedCount` is zero.
+- `GET /api/analytics/saved?limit=10` returns saved source/language distributions, tags, and collection usage without notes.
+- `GET /api/analytics/collections?limit=10` returns bounded collection counts and source/language distributions without repository documents.
+- `GET /api/analytics/watchlists?from=<ISO>&to=<ISO>&limit=10` returns run and target summaries plus bounded per-watchlist metrics.
+- `GET /api/analytics/changes?from=<ISO>&to=<ISO>&source=github` returns factual type/source/day groups and distinct changed target counts.
+- `GET /api/analytics/searches?from=<ISO>&to=<ISO>` returns job status, collection mode, source usage, average persisted result count, and daily activity.
+
+Date-aware routes default to the last 30 days, require ISO date-times with offsets, and reject reversed ranges or ranges over 365 days. Limits are 1–25. Source is restricted to the connector enum. Workspace-owned metrics use `workspaceKey = "default"`; collected search data is the shared Atlas dataset.
