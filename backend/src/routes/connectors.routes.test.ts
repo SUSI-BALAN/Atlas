@@ -1,14 +1,16 @@
 import request from "supertest";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../app.js";
 import { connectorRegistry } from "../composition.js";
 import { logger } from "../config/logger.js";
+import { allowTestAuth, testCookie } from "../tests/authFixture.js";
 
 afterEach(() => vi.restoreAllMocks());
+beforeEach(allowTestAuth);
 
 describe("GET /api/connectors", () => {
   it("reports enabled anonymous connectors as unchecked until a provider request succeeds", async () => {
-    const response = await request(createApp()).get("/api/connectors");
+    const response = await request(createApp()).get("/api/connectors").set("Cookie", testCookie);
     expect(response.status).toBe(200);
     expect(response.body.data).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "github", enabled: true, authentication: "anonymous", health: expect.objectContaining({ status: "unavailable", lastCheckedAt: null }) }),
@@ -26,7 +28,7 @@ describe("GET /api/connectors", () => {
     vi.spyOn(connector, "getHealth").mockImplementationOnce(() => { throw new Error("health probe failed"); });
     const log = vi.spyOn(logger, "error").mockImplementation(() => logger);
 
-    const response = await request(createApp()).get("/api/connectors");
+    const response = await request(createApp()).get("/api/connectors").set("Cookie", testCookie);
 
     expect(response.status).toBe(200);
     expect(response.body.data).toHaveLength(5);

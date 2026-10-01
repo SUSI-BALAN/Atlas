@@ -1,5 +1,7 @@
 # Architecture
 
+Stage 6 adds a server-controlled boundary before every application router: browser `/api/*` requests reach the fixed same-origin Netlify rewrite, then Express resolves a hashed MongoDB session, verifies active user/workspace membership, checks CSRF for mutations, and enters an async-local workspace context for existing services. Public operational/auth routes are explicitly mounted before this gate. Only the backend can derive workspace identity; browser-supplied workspace keys are ignored. The watch worker enters each due watchlist's own workspace context. The fixed proxy and static CSP are local configuration changes, not a deployed infrastructure change.
+
 The source-neutral watch service loads saved identities, calls connector `fetchItem`, creates an allowlisted snapshot, invokes the pure detector, and persists state/events/runs. HTTP routes and the run-once worker share it; Express has no polling timer.
 
 ## System boundary
@@ -54,9 +56,9 @@ The connector scheduler remains process-local. Once MongoDB connects at API star
 
 ## Evolution points
 
-Stage 4 introduces a dedicated analytics service between Express routes and Mongoose models. Routes validate bounded dates, limits, and provider enums; the service owns aggregation pipelines and returns source-neutral DTOs. Workspace-owned pipelines match `workspaceKey: "default"` before lookup/group stages, while legacy search/result analytics explicitly describe the shared Atlas dataset. The frontend requests sections independently so an optional report failure does not make the page unusable.
+Stage 4 introduced a dedicated analytics service between Express routes and Mongoose models. Routes validate bounded dates, limits, and provider enums; the service owns aggregation pipelines and returns source-neutral DTOs. Stage 6 scopes all pipelines, including search/result analytics, to the authenticated workspace. The frontend requests sections independently so an optional report failure does not make the page unusable.
 
-Stage 2 places saved repositories, collections, and membership behind a workspace service boundary. Saves copy only allowlisted normalized fields from job-scoped persisted results. Collections use join records rather than embedding repository documents. `workspaceKey: "default"` is an explicit future ownership partition, not a privacy claim.
+Stage 2 places saved repositories, collections, and membership behind a workspace service boundary. Saves copy only allowlisted normalized fields from job-scoped persisted results. Collections use join records rather than embedding repository documents. Stage 6 resolves ownership from authenticated server sessions and memberships; persisted records require an explicit workspace key. Historical pre-Stage-6 records used the `default` workspace or require additive ownership migration into it.
 
 - Search repository can be replaced by Meilisearch/OpenSearch/Elasticsearch indexing.
 - Scheduler ownership can move to BullMQ/Redis for multi-process execution and automatic restart recovery without changing REST contracts.

@@ -12,6 +12,7 @@ import { AppError } from "../../middleware/errorHandler.js";
 import type { NormalizedRepository, RepositorySearchBatch, RepositorySearchRequest, RepositorySource } from "../../types/repositorySearch.js";
 import type { SearchJobSnapshot, SearchJobStatus, SearchJobSummary, SourceProgress } from "../../types/searchJob.js";
 import { classifyError } from "../../utils/safeError.js";
+import { currentWorkspace } from "../workspaceContext.js";
 
 interface CreateInput extends Omit<RepositorySearchRequest, "sources" | "resultLimit"> { sources: RepositorySource[] | "all"; resultLimit?: number | null | undefined; }
 interface ResultPage { results: NormalizedRepository[]; nextCursor: string | null; hasMore: boolean; }
@@ -21,6 +22,7 @@ export class SearchJobService {
   readonly #controllers = new Map<string, AbortController>();
   readonly #memoryJobs = new Map<string, SearchJobSnapshot>();
   readonly #memoryResults = new Map<string, NormalizedRepository[]>();
+  readonly #memoryOwners = new Map<string, string>();
 
   constructor(private readonly registry: ConnectorRegistry, private readonly concurrency: number) {}
 
@@ -30,6 +32,7 @@ export class SearchJobService {
     if (sources.length === 0) throw new AppError(400, "NO_ENABLED_SOURCES", "No selected repository connector is enabled");
     const request: RepositorySearchRequest = { ...input, sources, resultLimit: input.resultLimit ?? null };
     if (request.collectionMode === "all" && !isDatabaseConnected()) throw new AppError(503, "DATABASE_REQUIRED", "All-results collection requires MongoDB so batches are not retained in process memory");
+    const workspaceKey = currentWorkspace();
     const cacheKey = searchCacheKey(request);
     const cached = await this.cachedJob(cacheKey);
     if (cached) return { ...cached, cached: true };
@@ -38,12 +41,13 @@ export class SearchJobService {
     const sourceProgress = sources.map((source): SourceProgress => ({ source, status: "queued", fetched: 0, pages: 0, total: null, rateLimit: null, cursor: null, error: null, updatedAt: now }));
     let snapshot: SearchJobSnapshot;
     if (isDatabaseConnected()) {
-      const document = await SearchJobModel.create({ status: "queued", request, cacheKey, sourceProgress, totalUnique: 0, cancelRequested: false, cached: false, requestId });
+      const document = await SearchJobModel.create({ workspaceKey, status: "queued", request, cacheKey, sourceProgress, totalUnique: 0, cancelRequested: false, cached: false, requestId });
       snapshot = toSnapshot(document.toObject());
     } else {
       const jobId = new Types.ObjectId().toString();
       snapshot = { jobId, status: "queued", request, sourceProgress, totalUnique: 0, cancelRequested: false, cached: false, createdAt: now, startedAt: null, completedAt: null };
       this.#memoryJobs.set(jobId, snapshot);
+      this.#memoryOwners.set(jobId, workspaceKey);
       this.#memoryResults.set(jobId, []);
     }
     queueMicrotask(() => void this.run(snapshot.jobId, cacheKey, requestId));
@@ -53,30 +57,30 @@ export class SearchJobService {
   async get(jobId: string): Promise<SearchJobSnapshot> {
     assertObjectId(jobId);
     if (isDatabaseConnected()) {
-      const document = await SearchJobModel.findById(jobId).lean();
+      const document = await SearchJobModel.findOne({ _id: jobId, workspaceKey: currentWorkspace() }).lean();
       if (!document) throw new AppError(404, "SEARCH_JOB_NOT_FOUND", "Search job was not found");
       return toSnapshot(document);
     }
     const job = this.#memoryJobs.get(jobId);
-    if (!job) throw new AppError(404, "SEARCH_JOB_NOT_FOUND", "Search job was not found");
+    if (!job || this.#memoryOwners.get(jobId) !== currentWorkspace()) throw new AppError(404, "SEARCH_JOB_NOT_FOUND", "Search job was not found");
     return job;
   }
 
   async list(cursor: string | undefined, limit: number): Promise<HistoryPage> {
     if (cursor) assertObjectId(cursor, "INVALID_HISTORY_CURSOR", "Search history cursor is invalid");
     if (isDatabaseConnected()) {
-      let query: Record<string, unknown> = {};
+      let query: Record<string, unknown> = { workspaceKey: currentWorkspace() };
       if (cursor) {
-        const boundary = await SearchJobModel.findById(cursor).select({ createdAt: 1 }).lean();
+        const boundary = await SearchJobModel.findOne({ _id: cursor, workspaceKey: currentWorkspace() }).select({ createdAt: 1 }).lean();
         if (!boundary?.createdAt) throw new AppError(400, "INVALID_HISTORY_CURSOR", "Search history cursor does not exist");
-        query = { $or: [{ createdAt: { $lt: boundary.createdAt } }, { createdAt: boundary.createdAt, _id: { $lt: new Types.ObjectId(cursor) } }] };
+        query = { workspaceKey: currentWorkspace(), $or: [{ createdAt: { $lt: boundary.createdAt } }, { createdAt: boundary.createdAt, _id: { $lt: new Types.ObjectId(cursor) } }] };
       }
       const documents = await SearchJobModel.find(query).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).lean();
       const hasMore = documents.length > limit;
       const page = documents.slice(0, limit);
       return { jobs: page.map(toSummary), nextCursor: page.length > 0 ? String(page.at(-1)?._id) : cursor ?? null, hasMore };
     }
-    const jobs = [...this.#memoryJobs.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const jobs = [...this.#memoryJobs.values()].filter(job => this.#memoryOwners.get(job.jobId) === currentWorkspace()).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     const offset = cursor ? Math.max(0, jobs.findIndex((job) => job.jobId === cursor) + 1) : 0;
     const page = jobs.slice(offset, offset + limit);
     return { jobs: page.map(snapshotToSummary), nextCursor: page.at(-1)?.jobId ?? cursor ?? null, hasMore: offset + page.length < jobs.length };
@@ -85,7 +89,7 @@ export class SearchJobService {
   async results(jobId: string, cursor: string | undefined, limit: number): Promise<ResultPage> {
     await this.get(jobId);
     if (isDatabaseConnected()) {
-      const query: Record<string, unknown> = { jobId: new Types.ObjectId(jobId) };
+      const query: Record<string, unknown> = { workspaceKey: currentWorkspace(), jobId: new Types.ObjectId(jobId) };
       if (cursor) query._id = { $gt: new Types.ObjectId(cursor) };
       const documents = await RepositoryResultModel.find(query).sort({ _id: 1 }).limit(limit + 1).lean();
       const hasMore = documents.length > limit;
@@ -104,7 +108,7 @@ export class SearchJobService {
     assertObjectId(repositoryId, "INVALID_REPOSITORY_ID", "Repository result ID is invalid");
     await this.get(jobId);
     if (isDatabaseConnected()) {
-      const document = await RepositoryResultModel.findOne({ _id: new Types.ObjectId(repositoryId), jobId: new Types.ObjectId(jobId) }).lean();
+      const document = await RepositoryResultModel.findOne({ _id: new Types.ObjectId(repositoryId), jobId: new Types.ObjectId(jobId), workspaceKey: currentWorkspace() }).lean();
       if (!document) throw new AppError(404, "REPOSITORY_RESULT_NOT_FOUND", "Repository result was not found for this search job");
       return repositoryFromDocument(document);
     }
@@ -200,7 +204,7 @@ export class SearchJobService {
       const jobObjectId = new Types.ObjectId(jobId);
       if (uniqueRepositories.length > 0) {
         const canonicalUrls = [...new Set(uniqueRepositories.map((repository) => canonicalizeUrl(repository.repositoryUrl)))];
-        const existingUrls = await RepositoryResultModel.find({ jobId: jobObjectId, canonicalUrl: { $in: canonicalUrls } }).select({ _id: 1, canonicalUrl: 1 }).lean();
+        const existingUrls = await RepositoryResultModel.find({ workspaceKey: currentWorkspace(), jobId: jobObjectId, canonicalUrl: { $in: canonicalUrls } }).select({ _id: 1, canonicalUrl: 1 }).lean();
         const canonicalOwners = new Map(existingUrls.map((row) => [String(row.canonicalUrl), row._id]));
         const operations = uniqueRepositories.map((repository) => {
           const canonicalUrl = canonicalizeUrl(repository.repositoryUrl);
@@ -209,14 +213,14 @@ export class SearchJobService {
           if (!duplicateUrlOf) canonicalOwners.set(canonicalUrl, documentId);
           return {
             updateOne: {
-              filter: { jobId: jobObjectId, source: repository.source, externalId: repository.externalId },
+              filter: { workspaceKey: currentWorkspace(), jobId: jobObjectId, source: repository.source, externalId: repository.externalId },
               update: { $setOnInsert: repositoryDocument(jobObjectId, repository, documentId, duplicateUrlOf) }, upsert: true
             }
           };
         });
         await RepositoryResultModel.bulkWrite(operations, { ordered: false });
       }
-      const totalUnique = await RepositoryResultModel.countDocuments({ jobId: jobObjectId });
+      const totalUnique = await RepositoryResultModel.countDocuments({ workspaceKey: currentWorkspace(), jobId: jobObjectId });
       await this.patchJob(jobId, { totalUnique });
       return;
     }
@@ -246,20 +250,20 @@ export class SearchJobService {
     const status: SearchJobStatus = limited > 0 && completed === 0 ? "rate_limited" : failed + limited > 0 && completed > 0 ? "partially_complete" : completed === 0 ? "failed" : "completed";
     await this.patchJob(jobId, { status, completedAt: new Date().toISOString() });
     if (isDatabaseConnected() && (status === "completed" || status === "partially_complete") && env.SEARCH_CACHE_TTL_SECONDS > 0) {
-      await SearchCacheModel.updateOne({ cacheKey }, { $set: { jobId: new Types.ObjectId(jobId), expiresAt: new Date(Date.now() + env.SEARCH_CACHE_TTL_SECONDS * 1000) } }, { upsert: true });
+      await SearchCacheModel.updateOne({ workspaceKey: currentWorkspace(), cacheKey }, { $set: { jobId: new Types.ObjectId(jobId), expiresAt: new Date(Date.now() + env.SEARCH_CACHE_TTL_SECONDS * 1000) } }, { upsert: true });
     }
   }
 
   private async cachedJob(cacheKey: string): Promise<SearchJobSnapshot | null> {
     if (!isDatabaseConnected() || env.SEARCH_CACHE_TTL_SECONDS === 0) return null;
-    const cache = await SearchCacheModel.findOne({ cacheKey, expiresAt: { $gt: new Date() } }).lean();
+    const cache = await SearchCacheModel.findOne({ workspaceKey: currentWorkspace(), cacheKey, expiresAt: { $gt: new Date() } }).lean();
     if (!cache) return null;
-    const job = await SearchJobModel.findById(cache.jobId).lean();
+    const job = await SearchJobModel.findOne({ _id: cache.jobId, workspaceKey: currentWorkspace() }).lean();
     return job ? toSnapshot(job) : null;
   }
 
   private async patchJob(jobId: string, patch: Record<string, unknown>): Promise<void> {
-    if (isDatabaseConnected()) { await SearchJobModel.updateOne({ _id: jobId }, { $set: normalizeDatePatch(patch) }); return; }
+    if (isDatabaseConnected()) { await SearchJobModel.updateOne({ _id: jobId, workspaceKey: currentWorkspace() }, { $set: normalizeDatePatch(patch) }); return; }
     const job = this.#memoryJobs.get(jobId); if (job) this.#memoryJobs.set(jobId, { ...job, ...patch } as SearchJobSnapshot);
   }
 
@@ -272,7 +276,7 @@ export class SearchJobService {
 
 function repositoryDocument(jobId: Types.ObjectId, repository: NormalizedRepository, documentId: Types.ObjectId, duplicateUrlOf: Types.ObjectId | null) {
   const { id: _id, createdAt, updatedAt, ...rest } = repository;
-  return { ...rest, _id: documentId, jobId, canonicalUrl: canonicalizeUrl(repository.repositoryUrl), duplicateUrlOf, sourceCreatedAt: createdAt ? new Date(createdAt) : null, sourceUpdatedAt: updatedAt ? new Date(updatedAt) : null, pushedAt: repository.pushedAt ? new Date(repository.pushedAt) : null };
+  return { ...rest, _id: documentId, workspaceKey: currentWorkspace(), jobId, canonicalUrl: canonicalizeUrl(repository.repositoryUrl), duplicateUrlOf, sourceCreatedAt: createdAt ? new Date(createdAt) : null, sourceUpdatedAt: updatedAt ? new Date(updatedAt) : null, pushedAt: repository.pushedAt ? new Date(repository.pushedAt) : null };
 }
 function repositoryFromDocument(document: Record<string, unknown>): NormalizedRepository {
   const date = (value: unknown): string | null => value instanceof Date ? value.toISOString() : null;

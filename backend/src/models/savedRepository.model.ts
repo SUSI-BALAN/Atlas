@@ -1,7 +1,7 @@
 import { Schema, model } from "mongoose";
 
 const savedRepositorySchema = new Schema({
-  workspaceKey: { type: String, required: true, default: "default" },
+  workspaceKey: { type: String, required: true },
   source: { type: String, required: true }, externalId: { type: String, required: true },
   owner: String, name: String, fullName: String, description: { type: String, default: null },
   repositoryUrl: { type: String, required: true }, language: { type: String, default: null }, languages: [String], topics: [String],

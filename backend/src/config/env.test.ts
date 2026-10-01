@@ -3,7 +3,7 @@ import { parseEnvironment } from "./env.js";
 
 describe("environment configuration", () => {
   it("uses Render-compatible binding and explicit production origins", () => {
-    const value = parseEnvironment({ NODE_ENV: "production", PORT: "10000", FRONTEND_ORIGINS: "https://atlaslaber.netlify.app" });
+    const value = parseEnvironment({ NODE_ENV: "production", PORT: "10000", FRONTEND_ORIGINS: "https://atlaslaber.netlify.app", MONGODB_URI: "mongodb://127.0.0.1:27017/atlas_test" });
     expect(value).toMatchObject({ BACKEND_HOST: "0.0.0.0", PORT: 10000, FRONTEND_ORIGINS: ["https://atlaslaber.netlify.app"] });
   });
 
@@ -35,5 +35,15 @@ describe("environment configuration", () => {
     for (const value of ["127", "4097", "1.5", "invalid"]) {
       expect(() => parseEnvironment({ AI_MAX_OUTPUT_TOKENS: value })).toThrow();
     }
+  });
+  it("rejects unsafe production authentication and proxy settings", () => {
+    const safe = { NODE_ENV: "production", FRONTEND_ORIGINS: "https://atlaslaber.netlify.app", MONGODB_URI: "mongodb://127.0.0.1:27017/atlas_test" };
+    expect(() => parseEnvironment({ ...safe, FRONTEND_ORIGINS: "http://atlaslaber.netlify.app" })).toThrow();
+    expect(() => parseEnvironment({ ...safe, FRONTEND_ORIGINS: "https://atlaslaber.netlify.app/path" })).toThrow();
+    expect(() => parseEnvironment({ ...safe, MONGODB_URI: undefined })).toThrow();
+    expect(() => parseEnvironment({ ...safe, AUTH_SESSION_TTL_SECONDS: "100" })).toThrow();
+    expect(() => parseEnvironment({ ...safe, AUTH_COOKIE_NAME: "bad cookie" })).toThrow();
+    expect(() => parseEnvironment({ ...safe, AI_PROVIDER: "openai", AI_REQUEST_TIMEOUT_MS: "60000" })).toThrow();
+    expect(parseEnvironment({ ...safe, AI_PROVIDER: "openai", AI_REQUEST_TIMEOUT_MS: "20000" }).AI_REQUEST_TIMEOUT_MS).toBe(20000);
   });
 });

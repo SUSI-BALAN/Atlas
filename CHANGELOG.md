@@ -1,5 +1,11 @@
 # Changelog
 
+## Stage 6 - Authentication and production hardening (local owner review)
+
+- Added owner bootstrap/reset CLIs, scrypt password storage, hashed durable sessions, host-only cookies, CSRF, login/logout/me APIs, and secure-by-default application routing.
+- Scoped search jobs, results, cache, legacy persistence, saved research, monitoring, analytics, and AI context to server-resolved workspaces; added an additive dry-run/apply migration.
+- Added the same-origin Netlify API proxy, restrictive static CSP, frontend login/settings experience, security regression tests, and a release runbook. No production actions were performed.
+
 ## Stage 5 - Grounded AI research
 
 - Replaced the AI placeholder with optional, durable, explicitly scoped Atlas research sessions.

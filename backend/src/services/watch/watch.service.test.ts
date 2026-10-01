@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConnectorError } from "../../connectors/core/connector.errors.js";
 import { AppError } from "../../middleware/errorHandler.js";
+import { currentWorkspace } from "../workspaceContext.js";
 
 const ids={watch:"507f1f77bcf86cd799439011",saved:"507f191e810c19729de860ea",run:"507f1f77bcf86cd799439012",event:"507f1f77bcf86cd799439013"};
 const m=vi.hoisted(()=>({
@@ -50,7 +51,8 @@ describe("WatchService checks",()=>{
  it("calculates nextCheckAt from completion time",async()=>{vi.useFakeTimers();vi.setSystemTime(new Date("2026-02-01T00:00:00Z"));setupCheck(null,[]);await service().execute(watch({checkIntervalMinutes:30}),{_id:ids.run});expect(m.watchUpdate.mock.calls[0][1].$set.nextCheckAt.toISOString()).toBe("2026-02-01T00:30:00.000Z");vi.useRealTimers();});
  it("runs a manual check and returns its durable run",async()=>{setupCheck(null,[]);const result=await service().startCheck(ids.watch,"request-1");expect(m.runCreate).toHaveBeenCalledWith(expect.objectContaining({requestId:"request-1",active:true,status:"running"}));expect(result.status).toBe("completed");});
  it("rejects an overlapping active run",async()=>{m.runCreate.mockRejectedValueOnce(Object.assign(new Error("duplicate"),{code:11000}));await expect(service().startCheck(ids.watch,"request-2")).rejects.toEqual(expect.objectContaining({status:409,code:"WATCHLIST_CHECK_IN_PROGRESS"}));});
- it("selects only a bounded set of due enabled watchlists",async()=>{const limit=vi.fn(()=>({lean:vi.fn(async()=>[watch(),watch({_id:"507f1f77bcf86cd799439010"})])}));m.watchFind.mockReturnValue({sort:vi.fn(()=>({limit}))});const subject=service();vi.spyOn(subject,"startCheck").mockResolvedValue({} as never);await subject.due(2,"worker");expect(m.watchFind).toHaveBeenCalledWith({workspaceKey:"default",enabled:true,nextCheckAt:{$lte:expect.any(Date)}});expect(limit).toHaveBeenCalledWith(2);expect(subject.startCheck).toHaveBeenCalledTimes(2);});
+ it("selects only a bounded set of due enabled watchlists",async()=>{const limit=vi.fn(()=>({lean:vi.fn(async()=>[watch(),watch({_id:"507f1f77bcf86cd799439010"})])}));m.watchFind.mockReturnValue({sort:vi.fn(()=>({limit}))});const subject=service();vi.spyOn(subject,"startCheck").mockResolvedValue({} as never);await subject.due(2,"worker");expect(m.watchFind).toHaveBeenCalledWith({enabled:true,nextCheckAt:{$lte:expect.any(Date)}});expect(limit).toHaveBeenCalledWith(2);expect(subject.startCheck).toHaveBeenCalledTimes(2);});
+ it("runs due watchlists in their own workspace contexts",async()=>{const limit=vi.fn(()=>({lean:vi.fn(async()=>[watch({workspaceKey:"workspace-b"})])}));m.watchFind.mockReturnValue({sort:vi.fn(()=>({limit}))});const subject=service();const seen:string[]=[];vi.spyOn(subject,"startCheck").mockImplementation(async()=>{seen.push(currentWorkspace());return{} as never});await subject.due(1,"worker");expect(seen).toEqual(["workspace-b"]);});
 });
 
 describe("WatchService changes",()=>{

@@ -3,6 +3,7 @@ import request from "supertest";
 import { describe, expect, it, vi } from "vitest";
 import type { NormalizedRepository } from "../types/repositorySearch.js";
 import { createSearchJobsRouter } from "./searchJobs.routes.js";
+import { AppError, createErrorHandler } from "../middleware/errorHandler.js";
 
 function repository(id: string, description: string): NormalizedRepository {
   return {
@@ -37,5 +38,16 @@ describe("search result exports", () => {
     expect(csvLines[1]).toContain('"quoted, value"');
     expect(csvLines[2]).toContain('"a ""quote"""');
     expect(results).toHaveBeenCalledTimes(4);
+  });
+
+  it("never exports a foreign job when ownership lookup returns not found", async () => {
+    const results = vi.fn();
+    const app = express();
+    app.use("/api/search/jobs", createSearchJobsRouter({ get: async () => { throw new AppError(404, "SEARCH_JOB_NOT_FOUND", "Search job was not found"); }, results } as never));
+    app.use(createErrorHandler("test"));
+    const response = await request(app).get("/api/search/jobs/507f191e810c19729de860aa/export?format=csv");
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe("SEARCH_JOB_NOT_FOUND");
+    expect(results).not.toHaveBeenCalled();
   });
 });

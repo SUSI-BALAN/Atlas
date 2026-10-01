@@ -1,5 +1,16 @@
 # REST API Contracts
 
+Stage 6 makes every research route authenticated and workspace-scoped. Only `GET /api/health`, `GET /api/health/ready`, `GET /api/version`, `POST /api/auth/login`, and idempotent `POST /api/auth/logout` are public. Authentication uses an HttpOnly host-only `atlas_session` cookie; mutating authenticated requests additionally require `X-CSRF-Token`. All responses retain Atlas envelopes and request IDs. `workspaceKey` is never accepted from ordinary browser request data.
+
+## Authentication
+
+- `POST /api/auth/login` accepts `{ "email": "...", "password": "..." }` and returns safe `{ email, workspace: { key, name, role }, expiresAt }` plus a session cookie. Invalid credentials return `INVALID_CREDENTIALS` with the same generic message for missing/disabled/wrong-password accounts. Attempts are limited to five per 15 minutes per client.
+- `GET /api/auth/me` returns the same safe identity. Missing/expired/disabled/no-membership sessions return `UNAUTHENTICATED` (401).
+- `GET /api/auth/csrf` returns `{ token }` for the current session. The token is not a bearer credential; clients send it in `X-CSRF-Token` on POST/PATCH/PUT/DELETE. Missing/invalid tokens return `INVALID_CSRF` (403); disallowed Origin returns `INVALID_ORIGIN` (403).
+- `POST /api/auth/logout` revokes the current session and clears the cookie; repeated logout succeeds. No public registration endpoint exists.
+
+The authenticated workspace limits search jobs/results/exports/cache, saved records, collections, watchlists, changes, analytics, and AI sessions/context. A foreign ID returns the same not-found shape as a missing ID where a resource lookup is performed.
+
 Stage 3 adds CRUD under `/api/watchlists`, membership routes under `/:watchlistId/repositories`, manual `/:watchlistId/check`, run history, and cursor-paginated `/api/changes` with validated watchlist, saved, source, type, and date filters. Existing envelopes and request IDs are preserved.
 
 All JSON routes use `{ success, data, meta }` envelopes. Errors use `{ success: false, error: { code, message, details? }, meta }`; secrets, authorization headers, unsafe provider payloads, and production stack traces are excluded.
@@ -87,7 +98,7 @@ All routes return the standard `{ success, data, meta: { requestId } }` envelope
 
 ## AI research
 
-All AI routes use the standard envelope and remain scoped to the shared `default` workspace.
+All AI routes use the standard envelope and are scoped to the workspace resolved from the authenticated server session and membership. Historical pre-Stage-6 records may require migration into the historical `default` workspace.
 
 - `GET /api/ai/status` returns safe provider readiness, configured model name, and capabilities. It never returns credentials, provider bodies, or the system instruction.
 - `POST /api/ai/sessions` creates a session with a title and explicit `contextSelection` references.
@@ -98,4 +109,4 @@ All AI routes use the standard envelope and remain scoped to the shared `default
 
 Selections allow at most 5 search jobs, 20 saved repositories, 5 collections, 5 watchlists, 20 changes, and 30 total selections. Generation is limited to 10 requests per client per 15 minutes. Safe Atlas error codes distinguish disabled, timeout, authentication, provider rate limit, malformed response, unavailable, and misconfigured states.
 
-Date-aware routes default to the last 30 days, require ISO date-times with offsets, and reject reversed ranges or ranges over 365 days. Limits are 1–25. Source is restricted to the connector enum. Workspace-owned metrics use `workspaceKey = "default"`; collected search data is the shared Atlas dataset.
+Date-aware routes default to the last 30 days, require ISO date-times with offsets, and reject reversed ranges or ranges over 365 days. Limits are 1–25. Source is restricted to the connector enum. Every metric, including collected search data, is scoped to the authenticated workspace after Stage 6 migration.

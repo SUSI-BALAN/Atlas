@@ -3,6 +3,8 @@ import type { AIContextSelection, AIResearchMessage, AIResearchSession, AIStatus
 interface Envelope<T> { success: boolean; data: T; error?: { message: string; details?: unknown }; meta?: { requestId?: string } }
 
 const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+if (import.meta.env.PROD && configuredApiBaseUrl) throw new Error("Production Atlas API must use the same-origin /api proxy; remove VITE_API_BASE_URL");
+let csrfToken: string | null = null;
 
 export function buildApiUrl(path: string, baseUrl = configuredApiBaseUrl): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -15,9 +17,20 @@ export function buildApiUrl(path: string, baseUrl = configuredApiBaseUrl): strin
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && !path.startsWith("/api/auth/login") && !csrfToken) {
+    const response = await fetch(buildApiUrl("/api/auth/csrf"), { credentials: "include" });
+    const payload = await response.json() as Envelope<{ token: string }>;
+    if (!response.ok || !payload.success) {
+      if (response.status === 401) { csrfToken = null; window.dispatchEvent(new Event("atlas-auth-expired")); }
+      throw new Error(payload.error?.message ?? "Authentication required");
+    }
+    csrfToken = payload.data.token;
+  }
   const response = await fetch(buildApiUrl(path), {
     ...init,
-    headers: { "content-type": "application/json", ...init?.headers }
+    credentials: "include",
+    headers: { "content-type": "application/json", ...(!["GET", "HEAD", "OPTIONS"].includes(method) && csrfToken && !path.startsWith("/api/auth/login") ? { "x-csrf-token": csrfToken } : {}), ...init?.headers }
   });
   const body = await response.text();
   let payload: Envelope<T> | null = null;
@@ -30,11 +43,25 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!payload) throw new Error(response.ok ? "API returned an empty response" : `API unavailable (${response.status})`);
   if (!response.ok || !payload.success) {
+    if (response.status === 401 && path !== "/api/auth/login" && path !== "/api/auth/me") {
+      csrfToken = null;
+      window.dispatchEvent(new Event("atlas-auth-expired"));
+    }
     const message = payload.error?.message ?? `Request failed (${response.status})`;
     const requestId = payload.meta?.requestId;
     throw new Error(requestId ? `${message} (request ${requestId})` : message);
   }
   return payload.data;
+}
+
+export interface AuthUser { email: string; workspace: { key: string; name: string; role: "owner" | "member" }; expiresAt: string }
+export function authMe(): Promise<AuthUser> { return api("/api/auth/me"); }
+export async function authLogin(email: string, password: string): Promise<AuthUser> {
+  csrfToken = null;
+  return api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+export async function authLogout(): Promise<void> {
+  try { await api("/api/auth/logout", { method: "POST" }); } finally { csrfToken = null; }
 }
 
 export function search(request: SearchRequest): Promise<SearchResponse> {

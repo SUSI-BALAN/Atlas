@@ -17,6 +17,8 @@ const envSchema = z.object({
   FRONTEND_URL: optionalUrl,
   FRONTEND_ORIGINS: z.string().optional(),
   MONGODB_URI: z.string().min(1).default("mongodb://127.0.0.1:27017/multi_forge"),
+  AUTH_SESSION_TTL_SECONDS: z.coerce.number().int().min(3600).max(30 * 86400).default(7 * 86400),
+  AUTH_COOKIE_NAME: z.string().regex(/^[a-z][a-z0-9_]{2,40}$/).default("atlas_session"),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(10000),
   CONNECTOR_CONCURRENCY: z.coerce.number().int().min(1).max(10).optional(),
   SEARCH_CONCURRENCY: z.coerce.number().int().min(1).max(10).optional(),
@@ -76,10 +78,13 @@ export function parseEnvironment(input: NodeJS.ProcessEnv) {
   ];
   const frontendOrigins = [...new Set([...configuredOrigins, ...localOrigins])].map((origin) => {
     const url = new URL(origin);
-    if (!/^https?:$/.test(url.protocol) || url.origin === "null") throw new Error("FRONTEND_ORIGINS must contain explicit HTTP(S) origins");
+    if (!/^https?:$/.test(url.protocol) || url.origin === "null" || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("FRONTEND_ORIGINS must contain clean HTTP(S) origins");
     return url.origin;
   });
   if (frontendOrigins.length === 0) throw new Error("At least one frontend origin is required");
+  if (value.NODE_ENV === "production" && frontendOrigins.some(origin => !origin.startsWith("https://"))) throw new Error("Production frontend origins must use HTTPS");
+  if (value.NODE_ENV === "production" && !input.MONGODB_URI) throw new Error("Production MONGODB_URI must be configured explicitly");
+  if (value.NODE_ENV === "production" && value.AI_PROVIDER !== "none" && value.AI_REQUEST_TIMEOUT_MS > 24_000) throw new Error("Production AI timeout must fit within the same-origin proxy limit");
   return {
     ...value,
     BACKEND_HOST: value.BACKEND_HOST ?? (value.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1"),

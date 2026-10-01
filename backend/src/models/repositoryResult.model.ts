@@ -1,6 +1,7 @@
 import { Schema, model } from "mongoose";
 
 const repositoryResultSchema = new Schema({
+  workspaceKey: { type: String, required: true },
   jobId: { type: Schema.Types.ObjectId, ref: "SearchJob", required: true, index: true },
   source: { type: String, required: true }, externalId: { type: String, required: true },
   owner: String, name: String, fullName: String, description: { type: String, default: null },
@@ -14,5 +15,6 @@ const repositoryResultSchema = new Schema({
 
 repositoryResultSchema.index({ jobId: 1, source: 1, externalId: 1 }, { unique: true });
 repositoryResultSchema.index({ jobId: 1, _id: 1 });
+repositoryResultSchema.index({ workspaceKey: 1, jobId: 1, _id: 1 });
 repositoryResultSchema.index({ jobId: 1, stars: -1 });
 export const RepositoryResultModel = model("RepositoryResult", repositoryResultSchema);

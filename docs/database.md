@@ -1,6 +1,10 @@
 # Database Architecture
 
-Stage 3 adds `watchlists`, `watchlist_memberships`, `repository_watch_states`, `change_events`, and `watch_check_runs`, all scoped by `workspaceKey: "default"`. Compound unique and time/ObjectId indexes support membership integrity, due selection, stable pagination, overlap protection, and event idempotency. Cascades are application-level; consistency windows are documented in the Stage 3 guide.
+Stage 6 adds `users`, `workspaces`, `workspace_memberships`, and `auth_sessions` (hashed token, CSRF hash, expiry TTL, revocation). Query-backed unique indexes cover normalized email, workspace key, membership identity, one owner per workspace, and session-token hash. Session lookup rechecks expiry, revocation, active user, workspace, and membership before returning research data.
+
+Search jobs, repository results, cache, and legacy raw/normalized/history records now store `workspaceKey`. Search history uses `{workspaceKey,createdAt,_id}`, results use `{workspaceKey,jobId,_id}`, cache uses unique `{workspaceKey,cacheKey}` plus TTL, and legacy normalized identity uses unique `{workspaceKey,source,sourceId}`. The additive migration backfills only missing keys to `default`, preserving IDs; it explicitly replaces the older single-key unique cache and normalized indexes after backfill. Stage 4 analytics now starts every search/result query with the same workspace match. See the Stage 6 guide for ordering and rollback constraints.
+
+Stage 3 adds `watchlists`, `watchlist_memberships`, `repository_watch_states`, `change_events`, and `watch_check_runs`. Stage 6 requires explicit workspace ownership resolved from authenticated server sessions and memberships; these schemas no longer default ownership to `default`. Historical records already assigned to `default` remain there, and missing keys are backfilled only by the explicit migration. Compound unique and time/ObjectId indexes support membership integrity, due selection, stable pagination, overlap protection, and event idempotency. Cascades are application-level; consistency windows are documented in the Stage 3 guide.
 
 MongoDB remains the persistence system. All-results jobs process a page at a time and do not retain the complete result set in process memory.
 
@@ -31,7 +35,7 @@ Stage 4 reads existing persisted collections directly and creates no analytics s
 - `change_events`: `{ workspaceKey: 1, source: 1, detectedAt: -1 }` supports source-filtered date-range reports; the existing workspace/date index supports unfiltered timelines.
 - `watch_check_runs`: `{ workspaceKey: 1, status: 1, createdAt: -1 }` supports status/time monitoring aggregation.
 
-Saved, collection, membership, and watchlist analytics reuse their existing workspace indexes. Collection/watchlist lists are capped at 25 and use aggregation lookups rather than N+1 reads. Search jobs and repository results are the pre-workspace shared Atlas dataset; analytics do not fabricate a workspace field for them.
+Saved, collection, membership, and watchlist analytics reuse their existing workspace indexes. Collection/watchlist lists are capped at 25 and use aggregation lookups rather than N+1 reads. Stage 6 adds workspace ownership to search jobs and repository results, so their analytics use the same boundary.
 
 ## AI research collections
 

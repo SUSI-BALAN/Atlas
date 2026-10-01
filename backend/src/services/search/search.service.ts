@@ -10,6 +10,7 @@ import type { SearchQuery } from "../../types/search.js";
 import { persistCollectedItems } from "../collection/persistCollectedItems.js";
 import { deduplicate } from "../deduplication/deduplicate.js";
 import { rankItems } from "../ranking/rank.js";
+import { currentWorkspace } from "../workspaceContext.js";
 
 export interface SourceSearchStatus {
   source: string;
@@ -79,7 +80,7 @@ export class SearchService {
   private async persistHistory(query: SearchQuery, requestId: string, result: UnifiedSearchResult): Promise<void> {
     if (!isDatabaseConnected()) return;
     try {
-      await SearchHistoryModel.create({ ...query, resultCount: result.results.length, status: result.status, requestId, searchedAt: new Date() });
+      await SearchHistoryModel.create({ ...query, workspaceKey: currentWorkspace(), resultCount: result.results.length, status: result.status, requestId, searchedAt: new Date() });
     } catch (error) {
       logger.error({ error: classifyError(error), requestId }, "Failed to persist search history");
     }

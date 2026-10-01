@@ -7,7 +7,7 @@ const contextSelectionSchema = new Schema({
 }, { _id: false, strict: true });
 
 const sessionSchema = new Schema({
-  workspaceKey: { type: String, required: true, default: "default" }, title: { type: String, required: true, trim: true, maxlength: 120 },
+  workspaceKey: { type: String, required: true }, title: { type: String, required: true, trim: true, maxlength: 120 },
   contextSelection: { type: contextSelectionSchema, required: true, default: () => ({}) }
 }, { timestamps: true, collection: "ai_research_sessions" });
 sessionSchema.index({ workspaceKey: 1, updatedAt: -1, _id: -1 });
@@ -16,7 +16,7 @@ export const AIResearchSessionModel = model("AIResearchSession", sessionSchema);
 const citationSchema = new Schema({ citationId: String, claim: String, kind: String, label: String, href: String }, { _id: false, strict: true });
 const usageSchema = new Schema({ inputTokens: Number, outputTokens: Number, totalTokens: Number }, { _id: false, strict: true });
 const messageSchema = new Schema({
-  workspaceKey: { type: String, required: true, default: "default" }, sessionId: { type: Schema.Types.ObjectId, required: true },
+  workspaceKey: { type: String, required: true }, sessionId: { type: Schema.Types.ObjectId, required: true },
   role: { type: String, enum: ["user", "assistant"], required: true }, content: { type: String, required: true, maxlength: 12000 },
   citations: { type: [citationSchema], default: [] }, provider: { type: String, default: null }, model: { type: String, default: null },
   usage: { type: usageSchema, default: null }, insufficientContext: { type: Boolean, default: false }, grounded: { type: Boolean, default: false },

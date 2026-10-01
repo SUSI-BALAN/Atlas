@@ -1,5 +1,7 @@
 # Security and Access Policy
 
+Stage 6 locally adds server-side login with versioned salted scrypt hashes, random hashed sessions, HttpOnly/SameSite=Strict host-only cookies (Secure in production), active-user/membership checks, session-bound CSRF, a dedicated login limiter, authenticated routing, and workspace-scoped searches through AI context. The frontend stores no bearer/session token and keeps CSRF only in memory. The static Netlify CSP disallows inline scripts, external connections, objects, and framing. Pino redacts cookie, authorization, and CSRF headers. The historical MongoDB credential still requires owner-led replacement/revocation before release; no production database or platform has been touched.
+
 ## Collection policy
 
 Collect only public or explicitly authorized information through official APIs or access methods that permit automation. Connectors must not bypass authentication, CAPTCHA, access controls, robots/access restrictions, platform rate limits, or terms.
@@ -14,7 +16,7 @@ Collect only public or explicitly authorized information through official APIs o
 
 ## Credential incident status
 
-- **Current tracked-file exposure:** Stage 0 locally replaces the credential-bearing `.env.example` value with a synthetic localhost-only URI. This change remains uncommitted pending review.
+- **Current tracked-file exposure:** `.env.example` uses a synthetic localhost-only URI and empty secret placeholders. Historical exposure is not cured by removing the value from current source.
 - **Historical Git exposure:** the credential-bearing value remains in repository history. Do not reproduce or use it, and do not rewrite history without explicit owner approval and coordination.
 - **Owner-confirmed revocation:** treat the credential as compromised until the owner confirms revocation or rotation and completes an access review. Stage 0 does not claim that either action has occurred.
 - **Local remediation:** redacted scanning must confirm that current public files and generated build output contain no credential-bearing URI before commit approval.
@@ -51,4 +53,4 @@ AI is disabled by default. Provider keys/configuration remain backend-only. Exte
 
 The validated backend-only `AI_MAX_OUTPUT_TOKENS` setting bounds provider generation (128–4,096; default 1,200) through each supported request protocol. The existing post-response character cap remains in effect. Custom local services may ignore Ollama's `options.num_predict`; this limitation is documented in the Stage 5 guide.
 
-Citation IDs are accepted only when present in the supplied context. Unknown IDs are discarded, and a response containing any unknown citation is marked not fully grounded. The UI states that history is shared in the unauthenticated workspace; it is not private or per-user.
+Citation IDs are accepted only when present in the supplied context. Unknown IDs are discarded, and a response containing any unknown citation is marked not fully grounded. AI history is shared within the authenticated workspace, not private to a user.

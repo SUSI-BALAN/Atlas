@@ -8,7 +8,7 @@ const snapshotSchema = new Schema({
 }, { _id: false, strict: true });
 
 const stateSchema = new Schema({
-  workspaceKey: { type: String, required: true, default: "default" },
+  workspaceKey: { type: String, required: true },
   watchlistId: { type: Schema.Types.ObjectId, required: true }, savedId: { type: Schema.Types.ObjectId, required: true },
   source: { type: String, required: true }, externalId: { type: String, required: true },
   snapshot: { type: snapshotSchema, default: null }, fingerprint: { type: String, default: null },

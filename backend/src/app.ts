@@ -18,6 +18,8 @@ import { watchlistsRouter } from "./routes/watchlists.routes.js";
 import { changesRouter } from "./routes/changes.routes.js";
 import { analyticsRouter } from "./routes/analytics.routes.js";
 import { aiRouter } from "./routes/ai.routes.js";
+import { createAuthRouter } from "./routes/auth.routes.js";
+import { requireAuth, requireCsrf } from "./middleware/auth.js";
 
 export function createApp(options: { nodeEnv?: "development" | "test" | "production" } = {}) {
   const app = express();
@@ -32,9 +34,11 @@ export function createApp(options: { nodeEnv?: "development" | "test" | "product
       if (!origin || env.FRONTEND_ORIGINS.includes(origin)) return callback(null, true);
       return callback(null, false);
     },
-    credentials: false
+    credentials: true
   }));
   app.use(express.json({ limit: "256kb" }));
+  // The same-origin CDN proxy must never cache personalized JSON or exports.
+  app.use("/api", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); });
   app.use(rateLimit({ windowMs: 60_000, limit: 120, standardHeaders: "draft-8", legacyHeaders: false }));
 
   const searchJobCreationLimit = rateLimit({
@@ -51,6 +55,8 @@ export function createApp(options: { nodeEnv?: "development" | "test" | "product
 
   app.use("/api/health", healthRouter);
   app.use("/api/version", versionRouter);
+  app.use("/api/auth", createAuthRouter());
+  app.use("/api", requireAuth, requireCsrf);
   app.use("/api/connectors", connectorsRouter);
   app.use("/api/search", searchRouter);
   app.use("/api/search/jobs", (req, res, next) => req.method === "POST" && req.path === "/" ? searchJobCreationLimit(req, res, next) : next(), searchJobsRouter);

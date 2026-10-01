@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 const changeEventSchema = new Schema({
-  workspaceKey: { type: String, required: true, default: "default" }, watchlistId: { type: Schema.Types.ObjectId, required: true },
+  workspaceKey: { type: String, required: true }, watchlistId: { type: Schema.Types.ObjectId, required: true },
   savedId: { type: Schema.Types.ObjectId, required: true }, source: { type: String, required: true }, externalId: { type: String, required: true },
   detectedAt: { type: Date, required: true }, changeTypes: { type: [String], required: true }, changes: { type: Schema.Types.Mixed, required: true },
   previousFingerprint: { type: String, required: true }, currentFingerprint: { type: String, required: true }, checkRunId: { type: Schema.Types.ObjectId, required: true }

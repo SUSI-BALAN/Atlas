@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 const runSchema = new Schema({
-  workspaceKey: { type: String, required: true, default: "default" }, watchlistId: { type: Schema.Types.ObjectId, required: true },
+  workspaceKey: { type: String, required: true }, watchlistId: { type: Schema.Types.ObjectId, required: true },
   status: { type: String, enum: ["queued","running","completed","partially_complete","failed","cancelled"], required: true },
   startedAt: { type: Date, default: null }, completedAt: { type: Date, default: null },
   checked: { type: Number, default: 0 }, changed: { type: Number, default: 0 }, unchanged: { type: Number, default: 0 },

@@ -1,84 +1,42 @@
-# Atlas Production Verification
+# Atlas production verification — owner-run only
 
-Run this checklist only after the owner has confirmed revocation or rotation of the exposed MongoDB credential, completed an access review, and identified the intended Atlas Render service and real HTTPS origin. Never paste secrets into commands, logs, tickets, or screenshots.
+This is a future checklist, not permission to access or change production. First complete the owner gates in [production-release-runbook.md](production-release-runbook.md). Do not use, inspect, or reproduce the historically exposed MongoDB credential. Record request IDs and categories, never passwords, cookies, CSRF tokens, private notes, AI conversations, or connection strings.
 
-## Required values
+## Release identity and infrastructure
 
-- `FRONTEND_ORIGIN`: `https://atlaslaber.netlify.app`
-- `BACKEND_ORIGIN`: the actual HTTPS origin shown by the Atlas Render service
-- Netlify `VITE_API_BASE_URL`: exactly `BACKEND_ORIGIN`, without `/api`
-- Render `MONGODB_URI`: a newly issued server-side Atlas URI with an explicit database name
-- Render `RENDER_GIT_COMMIT`: platform-provided release commit SHA; this is the required primary deployment identity
-- Render `BUILD_ID`: optional non-secret supplemental release label
+- [ ] Owner confirms a replacement least-privilege MongoDB user, new Render `MONGODB_URI`, verified connection, old-user revocation, and access review.
+- [ ] Owner approves migration, merge/push, Render deployment, and Netlify deployment as separate actions.
+- [ ] `/api/version` reports the expected `RENDER_GIT_COMMIT`; optional `BUILD_ID` is accurately labeled.
+- [ ] `/api/health` and strict `/api/health/ready` report the expected state.
+- [ ] Render build/start/readiness match reviewed `render.yaml`; auto-deploy remains off unless separately authorized.
+- [ ] Netlify `/api/*` forwards only to the fixed Atlas backend, before the SPA fallback. `VITE_API_BASE_URL` is absent. Browser requests stay on the frontend origin.
+- [ ] Static HTML/asset responses have the reviewed CSP, referrer, nosniff, frame, and permissions headers. No inline-script allowance appears.
+- [ ] Browser/API responses and logs contain no Mongo URI, API key, raw provider payload, stack trace, password, cookie, CSRF token, or private note.
 
-## Deployment gates
+## Authentication and browser security
 
-- [ ] Render service is created from the intended repository and `main` branch.
-- [ ] Render build command is `npm ci --include=dev && npm run build --workspace backend`.
-- [ ] Render start command is `npm run start --workspace backend`.
-- [ ] Runtime binds `0.0.0.0` and the platform-provided `PORT`.
-- [ ] `NODE_ENV=production` and `FRONTEND_ORIGINS=https://atlaslaber.netlify.app`.
-- [ ] `MONGODB_URI` is configured as a Render secret and is not the exposed historical credential.
-- [ ] `/api/health/ready` returns 200 before the deploy is considered healthy.
-- [ ] `/api/version` returns a non-null `commit` from `RENDER_GIT_COMMIT` that exactly matches the intended release commit.
-- [ ] If `BUILD_ID` is configured, `/api/version` returns the expected non-secret `buildId`; a null `buildId` is valid when it is not configured.
-- [ ] Netlify is linked to the intended repository and uses the root `netlify.toml`.
-- [ ] Netlify has production-scoped `VITE_API_BASE_URL=BACKEND_ORIGIN` before the production build.
-- [ ] Netlify publishes `frontend/dist` from the repository root.
+- [ ] Valid login creates a new host-only, HttpOnly, Secure, SameSite=Strict session cookie; no browser-readable bearer token appears in localStorage, sessionStorage, or IndexedDB.
+- [ ] Invalid email and wrong password have the same generic response; login throttles after the configured attempts.
+- [ ] Logout revokes the session and clears the cookie; repeated logout remains safe.
+- [ ] Expired and disabled-user sessions cannot read workspace data; Mongo TTL cleanup is not the only enforcement.
+- [ ] Mutations without/with wrong CSRF token and cross-origin mutations are rejected; safe GET remains CSRF-free.
+- [ ] Unauthenticated search, saved, collection, watchlist, analytics, changes, connectors, and AI data routes reject reads/writes. Public health/readiness/version remain available.
+- [ ] Login redirects back only to a safe intended in-app route; no protected-data flash occurs during auth loading.
+- [ ] With separately authorized isolated test users, workspace A cannot read B search jobs/results/exports/cache, saved data, collections, watchlists, changes, analytics, AI sessions, or AI context.
 
-## Frontend and routing
+## Research regression
 
-- [ ] `GET /`, `/search`, and `/sources` each return the application HTML with HTTP 200.
-- [ ] Browser refresh on `/search` and `/sources` remains HTTP 200 and preserves the route.
-- [ ] The delivered JavaScript contains the real HTTPS backend origin and no localhost API origin.
-- [ ] Browser network requests go directly to `BACKEND_ORIGIN/api/...` in the default configuration.
-- [ ] No Netlify `/api/*` proxy rule exists unless proxy mode was deliberately selected.
+- [ ] Fast/Deep/All search creation, progress, history, repository detail, cancellation/retry, and JSON/CSV export work within one workspace.
+- [ ] A completed job/results survive backend restart; interrupted jobs reconcile without replay or data deletion.
+- [ ] Saved repository CRUD, notes/tags, collections, memberships, watchlists, check runs, and factual changes remain workspace-scoped.
+- [ ] Monitoring failures retain the last valid baseline and do not fabricate changes; due worker respects per-watchlist workspace identity.
+- [ ] Analytics counts and date ranges derive from persisted workspace records; unknown/empty states remain honest.
+- [ ] AI disabled mode leaves non-AI features working; enabled mode grounds answers only in selected workspace context and validates citations.
+- [ ] Manual watch checks and AI generation behave within Netlify's external proxy timeout; if not, treat as release blocker and redesign response flow.
 
-Direct routing is the default: the browser uses `VITE_API_BASE_URL` to call Render and Render CORS allows the Netlify origin. Optional proxy mode requires a specific `/api/*` rewrite to the verified backend before the final `/* -> /index.html` rule; in that mode, leave `VITE_API_BASE_URL` empty. Do not configure both approaches accidentally.
+## Migration and rollback
 
-## Backend health and CORS
-
-- [ ] `GET BACKEND_ORIGIN/api/health` returns JSON, a request ID, `status=healthy`, `database=connected`, and `databaseReady=true`.
-- [ ] `GET BACKEND_ORIGIN/api/health/ready` returns HTTP 200 and `status=ready`.
-- [ ] The same health request with `Origin: https://atlaslaber.netlify.app` returns `Access-Control-Allow-Origin: https://atlaslaber.netlify.app`.
-- [ ] A request with an unapproved origin does not receive an allow-origin header.
-- [ ] No response exposes credentials, connection strings, authorization headers, or production stack traces.
-
-## Connectors and search
-
-- [ ] `/api/connectors` lists GitHub, GitLab, Codeberg, Gitea, and Forgejo in deterministic order.
-- [ ] Each enabled connector completes a small real repository search and returns original source URLs.
-- [ ] Unchecked connectors display `unavailable`; disabled or failed connectors display their real state, never fabricated availability.
-- [ ] Authentication mode is accurate without revealing tokens.
-- [ ] Real 403/429 responses preserve provider rate-limit metadata and retry timing.
-- [ ] Fast and Deep searches preserve successful sources when another source fails.
-- [ ] `/api/search` still supports the legacy bounded search contract.
-
-## Job workflow
-
-- [ ] `POST /api/search/jobs` returns 202 for a new job and a valid job ID.
-- [ ] Polling the job shows per-source progress, counts, pages, rate limits, and safe errors.
-- [ ] Results pagination returns no duplicate `(source, externalId)` identities and advances `nextCursor` correctly.
-- [ ] JSON and CSV exports download successfully and contain the same persisted result set.
-- [ ] Cancellation changes an active job to `cancelled` and aborts active provider requests/retry waits.
-- [ ] A deliberately retryable failed source can be retried without duplicating persisted results.
-- [ ] Permanent failures are not presented as retryable.
-
-## MongoDB All mode
-
-- [ ] Atlas DNS SRV lookup resolves from Render.
-- [ ] The new database user authenticates and has only the required database permissions.
-- [ ] The URI contains an explicit database name and uses Atlas TLS defaults.
-- [ ] An All-mode job is rejected with `DATABASE_REQUIRED` when storage is unavailable.
-- [ ] With storage ready, an All-mode job creates `search_jobs`, `repository_results`, and `search_cache` records.
-- [ ] Restart the API after a completed test job and confirm the job/results remain readable.
-- [ ] Run `npm run verify:storage` in an authorized environment and reconcile its counts with the API.
-- [ ] Delete only synthetic verification records after recording evidence, using an explicitly scoped query.
-
-## Evidence to retain
-
-- [ ] Render deploy ID, commit SHA, build result, startup log, and readiness response.
-- [ ] Netlify deploy ID, commit SHA, effective build settings, and environment-variable key names only.
-- [ ] HTTP status, content type, request ID, and redacted response body for each endpoint.
-- [ ] Per-connector outcome, authentication mode, rate-limit state, and result count.
-- [ ] MongoDB persistence evidence and cleanup result without credentials or connection strings.
+- [ ] Bootstrap is controlled, no public first-user race exists, and dry-run shows only count categories.
+- [ ] Approved `--apply` backfill preserves IDs, makes search/cache/legacy records workspace-owned, and is idempotent. Re-run dry-run confirms zero missing keys.
+- [ ] A reviewed backup/restore path and secure rollback commit exist. Never roll back to unauthenticated code against protected multi-workspace data or restore the exposed credential.
+- [ ] Production evidence is captured without secrets and owner signs off before declaring release complete.

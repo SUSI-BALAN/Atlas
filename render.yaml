@@ -17,6 +17,8 @@ services:
         value: 0.0.0.0
       - key: FRONTEND_ORIGINS
         value: https://atlaslaber.netlify.app
+      - key: AI_REQUEST_TIMEOUT_MS
+        value: "20000"
       - key: GITHUB_ENABLED
         value: "true"
       - key: GITLAB_ENABLED

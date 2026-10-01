@@ -1,6 +1,6 @@
 # Atlas Multi-Forge Research
 
-Stage 3 adds durable watchlists, direct repository checks, allowlisted snapshots, factual change history, manual checks, and a run-once worker. See `docs/stage-3-watchlists-changes.md`. Data remains in the shared unauthenticated `default` workspace.
+Stage 6 adds owner-controlled login, durable server sessions, CSRF protection, workspace-scoped research data, and a locally configured same-origin API proxy. This is not deployment authorization. See [the Stage 6 guide](docs/stage-6-auth-production-hardening.md) and [release runbook](docs/production-release-runbook.md).
 
 Atlas is a local-first repository research application. It collects public or explicitly authorized repository metadata from GitHub, GitLab, Codeberg, Gitea.com, and Forgejo through their REST APIs, normalizes it, and keeps provenance links to the original sources.
 
@@ -13,9 +13,9 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-The frontend runs at `http://localhost:5175`; the API defaults to `http://127.0.0.1:4000`. The Vite `/api` proxy targets that same API port. Copy `.env.example` to `backend/.env` to enable additional connectors or configure backend-only tokens. Leave `frontend/.env` without `VITE_API_BASE_URL` for local proxy mode; set `VITE_API_BASE_URL` to the deployed backend origin in Netlify production.
+The frontend runs at `http://localhost:5175`; the API defaults to `http://127.0.0.1:4000`. The Vite `/api` proxy targets that API port. Copy `.env.example` to `backend/.env` for local configuration; do not commit it. Supply `ATLAS_OWNER_EMAIL` to `npm.cmd run auth:bootstrap` and enter a 12–1024-character owner password at the hidden prompt, using only an explicitly approved local database. No public registration exists.
 
-Production uses the root `netlify.toml` for the frontend build and SPA fallback, and `render.yaml` for an independently deployed Express service. Set `MONGODB_URI` and optional connector tokens only in Render. Set `VITE_API_BASE_URL` in Netlify to the verified Render service origin before building the production frontend.
+Production configuration now prefers same-origin `/api` proxying through Netlify to the fixed Render backend. `VITE_API_BASE_URL` must be absent in production. The local `render.yaml` remains non-auto-deploying; a release requires separate owner approvals and historical MongoDB credential revocation before any deployment.
 
 MongoDB is required for **All available results** mode. When MongoDB is unavailable, Atlas reports degraded storage and permits only bounded Fast/Deep jobs so an unbounded collection cannot accumulate in Node.js memory.
 
@@ -29,11 +29,11 @@ Results are normalized and persisted one batch at a time, displayed through curs
 
 Universal Search is URL-driven: `/search?job=<jobId>` restores a persisted job after refresh and browser navigation. The page includes bounded, newest-first search history, job-scoped repository detail views, explicit partial/rate-limit/provider-limit states, and cursor-aware return navigation. On API startup, interrupted durable jobs are never replayed automatically; active sources become retryable interrupted failures while previously persisted results remain intact.
 
-Repositories can be saved from results or detail pages, annotated with plain-text notes and normalized tags, and organized into reusable collections. Saved data and collections are currently workspace-wide because authentication is not yet implemented.
+Repositories can be saved from results or detail pages, annotated with plain-text notes and normalized tags, and organized into reusable collections. All application research routes require a server-authenticated workspace membership. Members of the same workspace share its data; this is not per-user private storage.
 
-The `/analytics` workspace presents real descriptive metrics from persisted searches, collected results, saved research, collections, watchlists, check runs, and change events. Date ranges are bounded to 365 days, unknown languages remain explicit, and empty installations never receive fabricated sample values. Analytics remain workspace-wide under `workspaceKey = "default"`.
+The `/analytics` workspace presents real descriptive metrics from persisted searches, collected results, saved research, collections, watchlists, check runs, and change events. Date ranges are bounded to 365 days, unknown languages remain explicit, and empty installations never receive fabricated sample values. Analytics are scoped to the authenticated workspace.
 
-The optional `/ai` workspace provides grounded research sessions over explicitly selected Atlas records. `AI_PROVIDER=none` is the supported default and leaves every non-AI feature available. Local, OpenAI, and DeepSeek adapters are server-side only; saved notes, raw provider metadata, secrets, and unselected records are excluded from AI context. AI research history is shared within the unauthenticated `default` workspace.
+The optional `/ai` workspace provides grounded research sessions over explicitly selected Atlas records. `AI_PROVIDER=none` is the supported default and leaves every non-AI feature available. Local, OpenAI, and DeepSeek adapters are server-side only; saved notes, raw provider metadata, secrets, and unselected records are excluded from AI context. AI research history is shared by authenticated members of its workspace.
 
 ## Verification
 
@@ -50,5 +50,6 @@ Stage 2 is documented in [docs/stage-2-saved-collections.md](./docs/stage-2-save
 Stage 3 is documented in [docs/stage-3-watchlists-changes.md](./docs/stage-3-watchlists-changes.md).
 Stage 4 is documented in [docs/stage-4-analytics-insights.md](./docs/stage-4-analytics-insights.md).
 Stage 5 is documented in [docs/stage-5-ai-research.md](./docs/stage-5-ai-research.md).
+Stage 6 is documented in [docs/stage-6-auth-production-hardening.md](./docs/stage-6-auth-production-hardening.md).
 
 The evidence-based Stage 0 feature matrix, findings, blockers, and Stage 1 acceptance criteria are recorded in [docs/stage-0-audit.md](./docs/stage-0-audit.md).
