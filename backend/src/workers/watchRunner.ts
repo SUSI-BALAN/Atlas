@@ -1,0 +1,3 @@
+import { randomUUID } from "node:crypto";import { watchService } from "../composition.js";import { env } from "../config/env.js";import { connectDatabase,disconnectDatabase } from "../database/mongoose.js";import { logger } from "../config/logger.js";import { classifyError } from "../utils/safeError.js";
+async function main(){try{await connectDatabase();const runs=await watchService.due(env.WATCH_MAX_WATCHLISTS_PER_RUN,`worker:${randomUUID()}`);logger.info({processed:runs.length},"Due watchlists processed");}catch(error){logger.error({error:classifyError(error)},"Watch runner failed");process.exitCode=1;}finally{await disconnectDatabase();}}
+void main();

@@ -1,10 +1,40 @@
 # Changelog
 
+## Stage 6 - Authentication and production hardening (local owner review)
+
+- Added owner bootstrap/reset CLIs, scrypt password storage, hashed durable sessions, host-only cookies, CSRF, login/logout/me APIs, and secure-by-default application routing.
+- Scoped search jobs, results, cache, legacy persistence, saved research, monitoring, analytics, and AI context to server-resolved workspaces; added an additive dry-run/apply migration.
+- Added the same-origin Netlify API proxy, restrictive static CSP, frontend login/settings experience, security regression tests, and a release runbook. No production actions were performed.
+
+## Stage 5 - Grounded AI research
+
+- Replaced the AI placeholder with optional, durable, explicitly scoped Atlas research sessions.
+- Added provider-neutral `none`, local, OpenAI, and DeepSeek adapters with server-only configuration, bounded timeouts, safe health/status, and usage metadata.
+- Added allowlisted context building, citation validation, prompt-injection defenses, idempotent generation requests, and dedicated generation rate limiting.
+- Added the accessible AI session/context/conversation UI and focused backend/frontend tests without live providers or production data.
+
+## Stage 4 - Analytics and insights
+
+- Replaced the Analytics placeholder with real persisted overview, source, language, saved-research, monitoring, and change-timeline metrics.
+- Added a dedicated workspace-aware aggregation service and eight validated `/api/analytics` reports.
+- Added bounded ISO date ranges, provider enums, deterministic distributions, explicit unknown-language handling, and safe empty/error behavior.
+- Added accessible responsive text-backed charts and independent section caching/failure states without a chart dependency.
+- Added focused backend and frontend analytics tests while preserving all Stage 0–3 suites.
+
+## Stage 3 - Watchlists and changes
+
+- Added durable watchlists, memberships, watch state, change events, and check runs.
+- Added bounded manual/due checks, safe provider failures, overlap protection, new UI pages, saved integration, and dashboard counts.
+
 All notable project changes are recorded here.
 
 ## Unreleased
 
 ### Added
+
+- Stage 2 durable saved repositories and collections with safe snapshots, notes, tags, reference-only membership, search/detail integration, and workspace summary counts.
+
+- Stage 1 durable search workflow: URL-restored jobs and result cursors, bounded cursor-paged search history, normalized job-scoped repository details, responsive state messaging, and conservative interrupted-job reconciliation with explicit retry.
 
 - Durable asynchronous repository search jobs with progressive per-source status, cancellation, source retry, cursor-paged results, and backend-streamed JSON/CSV export.
 - Uncapped all-available mode that consumes provider pages sequentially without an application-side result ceiling, while requiring MongoDB to avoid unbounded process memory.
@@ -28,6 +58,7 @@ All notable project changes are recorded here.
 
 ### Fixed
 
+- Hardened Stage 0 release verification with deploy identity reporting, honest pre-probe connector health, guarded source retries, search-job creation throttling, patched query parsing, Netlify security headers, and an evidence-based audit.
 - Removed conflicting MongoDB upsert operators discovered during live persistence verification.
 - Separated programming-language storage from MongoDB text-index language override semantics.
 - Prevented unified pagination from silently skipping smaller-source records by allocating each global page across requested providers.
