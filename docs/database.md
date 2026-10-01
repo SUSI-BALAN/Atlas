@@ -1,5 +1,7 @@
 # Database Architecture
 
+Stage 3 adds `watchlists`, `watchlist_memberships`, `repository_watch_states`, `change_events`, and `watch_check_runs`, all scoped by `workspaceKey: "default"`. Compound unique and time/ObjectId indexes support membership integrity, due selection, stable pagination, overlap protection, and event idempotency. Cascades are application-level; consistency windows are documented in the Stage 3 guide.
+
 MongoDB remains the persistence system. All-results jobs process a page at a time and do not retain the complete result set in process memory.
 
 ## Search collections

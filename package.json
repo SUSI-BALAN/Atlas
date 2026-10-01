@@ -10,7 +10,8 @@
     "build": "npm run build --workspace backend && npm run build --workspace frontend",
     "test": "npm run test --workspace backend && npm run test --workspace frontend",
     "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
-    "verify:storage": "node scripts/verify-storage.mjs"
+    "verify:storage": "node scripts/verify-storage.mjs",
+    "watch:run": "npm run watch:run --workspace backend"
   },
   "devDependencies": { "concurrently": "^9.2.1" },
   "engines": { "node": ">=20.0.0" }

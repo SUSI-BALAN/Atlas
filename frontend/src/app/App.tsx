@@ -10,6 +10,9 @@ import { SavedPage } from "../pages/SavedPage";
 import { SavedDetailPage } from "../pages/SavedDetailPage";
 import { CollectionsPage } from "../pages/CollectionsPage";
 import { CollectionDetailPage } from "../pages/CollectionDetailPage";
+import { WatchlistsPage } from "../pages/WatchlistsPage";
+import { WatchlistDetailPage } from "../pages/WatchlistDetailPage";
+import { ChangesPage } from "../pages/ChangesPage";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
@@ -27,9 +30,11 @@ export function App() {
             <Route path="saved/:id" element={<SavedDetailPage />} />
             <Route path="collections" element={<CollectionsPage />} />
             <Route path="collections/:id" element={<CollectionDetailPage />} />
+            <Route path="watchlists" element={<WatchlistsPage />} />
+            <Route path="watchlists/:id" element={<WatchlistDetailPage />} />
+            <Route path="changes" element={<ChangesPage />} />
             {[
-              ["watchlists", "Watchlists"],
-              ["changes", "Change history"], ["analytics", "Analytics"], ["ai", "AI research"], ["settings", "Settings"]
+              ["analytics", "Analytics"], ["ai", "AI research"], ["settings", "Settings"]
             ].map(([path, title]) => <Route key={path} path={path} element={<PlaceholderPage title={title} />} />)}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

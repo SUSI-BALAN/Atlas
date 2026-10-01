@@ -1,5 +1,7 @@
 # Project Context
 
+Stage 3 monitors saved repositories through durable watchlists, direct connector detail calls, allowlisted baselines/change events, bounded checks, and a run-once worker. No production scheduler, authentication, analytics, AI, notifications, or collaboration is included.
+
 ## Product
 
 Atlas is a local-first Multi-Forge repository research platform. It collects public or explicitly authorized data through official APIs, preserves source provenance, normalizes provider records, and never claims to bypass provider limits.

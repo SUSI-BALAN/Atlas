@@ -20,6 +20,8 @@ const envSchema = z.object({
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(10000),
   CONNECTOR_CONCURRENCY: z.coerce.number().int().min(1).max(10).optional(),
   SEARCH_CONCURRENCY: z.coerce.number().int().min(1).max(10).optional(),
+  WATCH_CHECK_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
+  WATCH_MAX_WATCHLISTS_PER_RUN: z.coerce.number().int().min(1).max(100).default(10),
   SEARCH_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(86400).default(300),
   MAX_EXPANDED_QUERIES: z.coerce.number().int().min(1).max(20).default(5),
   GITHUB_ENABLED: booleanValue.default(true),

@@ -100,3 +100,7 @@ export interface SavedRepository {
 }
 export interface SavedPage { repositories: SavedRepository[]; nextCursor: string | null; hasMore: boolean }
 export interface Collection { collectionId: string; name: string; description: string; repositoryCount: number; createdAt: string | null; updatedAt: string | null }
+export interface Watchlist { watchlistId:string;name:string;description:string;enabled:boolean;checkIntervalMinutes:number;lastCheckedAt:string|null;nextCheckAt:string|null;targetCount:number;createdAt:string|null;updatedAt:string|null }
+export interface WatchRun {runId:string;watchlistId:string;status:string;startedAt:string|null;completedAt:string|null;checked:number;changed:number;unchanged:number;failed:number;rateLimited:number;errors:{savedId:string;code:string}[]}
+export interface WatchedRepository {savedId:string;source:RepositorySource;externalId:string;fullName:string;lastCheckedAt:string|null;lastSuccessfulCheckAt:string|null;consecutiveFailures:number;lastError:{code:string;category:string;occurredAt:string}|null}
+export interface ChangeEvent {changeId:string;watchlistId:string;watchlistName:string;savedId:string;repositoryName:string;source:RepositorySource;externalId:string;detectedAt:string;changeTypes:string[];changes:Record<string,{previous:unknown;current:unknown;added?:string[];removed?:string[]}>}

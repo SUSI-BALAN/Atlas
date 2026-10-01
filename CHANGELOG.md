@@ -1,5 +1,10 @@
 # Changelog
 
+## Stage 3 - Watchlists and changes
+
+- Added durable watchlists, memberships, watch state, change events, and check runs.
+- Added bounded manual/due checks, safe provider failures, overlap protection, new UI pages, saved integration, and dashboard counts.
+
 All notable project changes are recorded here.
 
 ## Unreleased

@@ -1,5 +1,7 @@
 # Architecture
 
+The source-neutral watch service loads saved identities, calls connector `fetchItem`, creates an allowlisted snapshot, invokes the pure detector, and persists state/events/runs. HTTP routes and the run-once worker share it; Express has no polling timer.
+
 ## System boundary
 
 The application aggregates public or explicitly authorized information through official or otherwise permitted interfaces. Provider access is an adapter concern; core search and research workflows operate on normalized records.

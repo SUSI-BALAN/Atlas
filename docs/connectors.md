@@ -1,5 +1,7 @@
 # Connector Development Guide
 
+Monitoring uses direct repository `fetchItem` calls: owner/name for GitHub and Gitea/Forgejo-compatible forges, and project ID for GitLab. Provider values are normalized before monitoring; unsupported values stay null and raw responses, headers, credentials, and arbitrary metadata are not persisted in snapshots.
+
 Repository connectors implement one source-neutral contract: configuration validation, health/rate-limit status, normalization, and `searchRepositories()` as an `AsyncGenerator<RepositorySearchBatch>`. Each yielded page is persisted before the next page is fetched.
 
 All connectors must use official/public APIs, backend-only optional tokens, an abort signal, response validation, explicit timeouts, bounded retries, and sanitized structured logs. Permanent 4xx errors are not retried. Retryable network/timeouts, 429, and selected 5xx responses use exponential backoff with jitter and provider reset/retry timing.

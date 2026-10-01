@@ -1,5 +1,7 @@
 # Atlas Multi-Forge Research
 
+Stage 3 adds durable watchlists, direct repository checks, allowlisted snapshots, factual change history, manual checks, and a run-once worker. See `docs/stage-3-watchlists-changes.md`. Data remains in the shared unauthenticated `default` workspace.
+
 Atlas is a local-first repository research application. It collects public or explicitly authorized repository metadata from GitHub, GitLab, Codeberg, Gitea.com, and Forgejo through their REST APIs, normalizes it, and keeps provenance links to the original sources.
 
 ## Run locally

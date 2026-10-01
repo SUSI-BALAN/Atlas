@@ -1,6 +1,10 @@
 import { Types } from "mongoose";
 import { AppError } from "../middleware/errorHandler.js";
 import { CollectionMembershipModel, CollectionModel } from "../models/collection.model.js";
+import { WatchlistMembershipModel } from "../models/watchlist.model.js";
+import { RepositoryWatchStateModel } from "../models/repositoryWatchState.model.js";
+import { WatchlistModel } from "../models/watchlist.model.js";
+import { ChangeEventModel } from "../models/changeEvent.model.js";
 import { RepositoryResultModel } from "../models/repositoryResult.model.js";
 import { SavedRepositoryModel } from "../models/savedRepository.model.js";
 
@@ -32,8 +36,8 @@ export class WorkspaceService {
     return { repositories: page.map(savedView), nextCursor: page.at(-1)?._id ? String(page.at(-1)!._id) : input.cursor ?? null, hasMore };
   }
   async update(savedId: string, patch: { note?: string | undefined; tags?: string[] | undefined }) { const row = await SavedRepositoryModel.findOneAndUpdate({ _id: oid(savedId, "INVALID_SAVED_ID"), workspaceKey }, { $set: patch }, { new: true }).lean(); if (!row) throw new AppError(404, "SAVED_REPOSITORY_NOT_FOUND", "Saved repository was not found"); return savedView(row); }
-  async remove(savedId: string) { const id = oid(savedId, "INVALID_SAVED_ID"); const row = await SavedRepositoryModel.findOneAndDelete({ _id: id, workspaceKey }).lean(); if (!row) throw new AppError(404, "SAVED_REPOSITORY_NOT_FOUND", "Saved repository was not found"); await CollectionMembershipModel.deleteMany({ workspaceKey, savedId: id }); return { deleted: true }; }
-  async summary() { const [savedRepositories, collections] = await Promise.all([SavedRepositoryModel.countDocuments({ workspaceKey }), CollectionModel.countDocuments({ workspaceKey })]); return { savedRepositories, collections }; }
+  async remove(savedId: string) { const id = oid(savedId, "INVALID_SAVED_ID"); const row = await SavedRepositoryModel.findOneAndDelete({ _id: id, workspaceKey }).lean(); if (!row) throw new AppError(404, "SAVED_REPOSITORY_NOT_FOUND", "Saved repository was not found"); await Promise.all([CollectionMembershipModel.deleteMany({ workspaceKey, savedId: id }),WatchlistMembershipModel.deleteMany({workspaceKey,savedId:id}),RepositoryWatchStateModel.deleteMany({workspaceKey,savedId:id})]); return { deleted: true }; }
+  async summary() { const [savedRepositories, collections,watchlists,recentChanges] = await Promise.all([SavedRepositoryModel.countDocuments({ workspaceKey }), CollectionModel.countDocuments({ workspaceKey }),WatchlistModel.countDocuments({workspaceKey}),ChangeEventModel.countDocuments({workspaceKey,detectedAt:{$gte:new Date(Date.now()-7*86400000)}})]); return { savedRepositories, collections,watchlists,recentChanges }; }
 
   async createCollection(input: { name: string; description: string }) { return collectionView((await CollectionModel.create({ workspaceKey, ...input })).toObject(), 0); }
   async listCollections() { const rows = await CollectionModel.find({ workspaceKey }).sort({ createdAt: -1, _id: -1 }).lean(); return Promise.all(rows.map(async (row) => collectionView(row, await CollectionMembershipModel.countDocuments({ workspaceKey, collectionId: row._id })))); }

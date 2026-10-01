@@ -1,5 +1,7 @@
 # REST API Contracts
 
+Stage 3 adds CRUD under `/api/watchlists`, membership routes under `/:watchlistId/repositories`, manual `/:watchlistId/check`, run history, and cursor-paginated `/api/changes` with validated watchlist, saved, source, type, and date filters. Existing envelopes and request IDs are preserved.
+
 All JSON routes use `{ success, data, meta }` envelopes. Errors use `{ success: false, error: { code, message, details? }, meta }`; secrets, authorization headers, unsafe provider payloads, and production stack traces are excluded.
 
 ## Search jobs

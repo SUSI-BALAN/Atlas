@@ -1,4 +1,4 @@
-import type { Collection, ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SavedPage, SavedRepository, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse } from "../types/api";
+import type { ChangeEvent, Collection, ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SavedPage, SavedRepository, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse, WatchedRepository, Watchlist, WatchRun } from "../types/api";
 
 interface Envelope<T> { success: boolean; data: T; error?: { message: string; details?: unknown }; meta?: { requestId?: string } }
 
@@ -63,7 +63,7 @@ export function listSaved(params:Record<string,string|undefined>={}):Promise<Sav
 export function getSaved(id:string):Promise<SavedRepository>{return api(`/api/saved/${id}`);}
 export function updateSaved(id:string,patch:{note?:string;tags?:string[]}):Promise<SavedRepository>{return api(`/api/saved/${id}`,{method:"PATCH",body:JSON.stringify(patch)});}
 export function unsaveRepository(id:string):Promise<{deleted:boolean}>{return api(`/api/saved/${id}`,{method:"DELETE"});}
-export function workspaceSummary():Promise<{savedRepositories:number;collections:number}>{return api("/api/saved/summary");}
+export function workspaceSummary():Promise<{savedRepositories:number;collections:number;watchlists:number;recentChanges:number}>{return api("/api/saved/summary");}
 export function listCollections():Promise<Collection[]>{return api("/api/collections");}
 export function createCollection(input:{name:string;description:string}):Promise<Collection>{return api("/api/collections",{method:"POST",body:JSON.stringify(input)});}
 export function getCollection(id:string):Promise<Collection>{return api(`/api/collections/${id}`);}
@@ -72,3 +72,14 @@ export function deleteCollection(id:string):Promise<{deleted:boolean}>{return ap
 export function listCollectionRepositories(id:string,cursor?:string):Promise<SavedPage>{const query=new URLSearchParams({limit:"20"});if(cursor)query.set("cursor",cursor);return api(`/api/collections/${id}/repositories?${query}`);}
 export function addToCollection(collectionId:string,savedId:string):Promise<Collection>{return api(`/api/collections/${collectionId}/repositories/${savedId}`,{method:"POST"});}
 export function removeFromCollection(collectionId:string,savedId:string):Promise<{deleted:boolean}>{return api(`/api/collections/${collectionId}/repositories/${savedId}`,{method:"DELETE"});}
+export function listWatchlists(cursor?:string):Promise<{watchlists:Watchlist[];nextCursor:string|null;hasMore:boolean}>{const q=new URLSearchParams({limit:"20"});if(cursor)q.set("cursor",cursor);return api(`/api/watchlists?${q}`)}
+export function createWatchlist(input:{name:string;description:string;enabled:boolean;checkIntervalMinutes:number}):Promise<Watchlist>{return api("/api/watchlists",{method:"POST",body:JSON.stringify(input)})}
+export function getWatchlist(id:string):Promise<Watchlist>{return api(`/api/watchlists/${id}`)}
+export function updateWatchlist(id:string,patch:Partial<Pick<Watchlist,"name"|"description"|"enabled"|"checkIntervalMinutes">>):Promise<Watchlist>{return api(`/api/watchlists/${id}`,{method:"PATCH",body:JSON.stringify(patch)})}
+export function deleteWatchlist(id:string):Promise<{deleted:boolean}>{return api(`/api/watchlists/${id}`,{method:"DELETE"})}
+export function listWatchedRepositories(id:string):Promise<{repositories:WatchedRepository[];nextCursor:string|null;hasMore:boolean}>{return api(`/api/watchlists/${id}/repositories?limit=100`)}
+export function addToWatchlist(id:string,savedId:string){return api(`/api/watchlists/${id}/repositories/${savedId}`,{method:"POST"})}
+export function removeFromWatchlist(id:string,savedId:string):Promise<{deleted:boolean}>{return api(`/api/watchlists/${id}/repositories/${savedId}`,{method:"DELETE"})}
+export function checkWatchlist(id:string):Promise<WatchRun>{return api(`/api/watchlists/${id}/check`,{method:"POST"})}
+export function listWatchRuns(id:string):Promise<{runs:WatchRun[];nextCursor:string|null;hasMore:boolean}>{return api(`/api/watchlists/${id}/runs?limit=20`)}
+export function listChanges(params:Record<string,string|undefined>={}):Promise<{changes:ChangeEvent[];nextCursor:string|null;hasMore:boolean}>{const q=new URLSearchParams({limit:"20"});for(const[k,v]of Object.entries(params))if(v)q.set(k,v);return api(`/api/changes?${q}`)}

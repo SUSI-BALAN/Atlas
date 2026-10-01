@@ -14,6 +14,8 @@ import { searchJobsRouter } from "./routes/searchJobs.routes.js";
 import { versionRouter } from "./routes/version.routes.js";
 import { savedRouter } from "./routes/saved.routes.js";
 import { collectionsRouter } from "./routes/collections.routes.js";
+import { watchlistsRouter } from "./routes/watchlists.routes.js";
+import { changesRouter } from "./routes/changes.routes.js";
 
 export function createApp(options: { nodeEnv?: "development" | "test" | "production" } = {}) {
   const app = express();
@@ -52,6 +54,9 @@ export function createApp(options: { nodeEnv?: "development" | "test" | "product
   app.use("/api/search/jobs", (req, res, next) => req.method === "POST" && req.path === "/" ? searchJobCreationLimit(req, res, next) : next(), searchJobsRouter);
   app.use("/api/saved", savedRouter);
   app.use("/api/collections", collectionsRouter);
+  const watchCheckLimit=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-8",legacyHeaders:false});
+  app.use("/api/watchlists",(req,res,next)=>req.method==="POST"&&req.path.endsWith("/check")?watchCheckLimit(req,res,next):next(),watchlistsRouter);
+  app.use("/api/changes", changesRouter);
   app.use(notFound);
   app.use(createErrorHandler(nodeEnv));
   return app;
