@@ -13,3 +13,11 @@ Each connector batch uses unordered `bulkWrite` upserts. The response model cont
 The repository detail response allowlists safe public metadata and omits stored provenance/request identifiers. Detail lookup always matches both `_id` and `jobId`, preventing a repository identifier from being reused across jobs.
 
 The earlier `rawItems`, `normalizedItems`, and `searchHistory` collections remain for the legacy synchronous/mixed-content search API. They are not deleted or replaced.
+
+## Saved research collections
+
+- `saved_repositories`: safe normalized snapshot, plain-text note, tags, and originating job/result reference. Unique `{ workspaceKey, source, externalId }`; indexed for creation pagination, tags, and language.
+- `collections`: bounded name/description with workspace and creation indexes.
+- `collection_memberships`: reference-only join rows. Unique `{ workspaceKey, collectionId, savedId }` prevents duplicates; the reverse index supports cleanup.
+
+Unsave removes memberships. Deleting a collection removes memberships but never saved repositories. The constant workspace partition can become an authenticated owner/team key later.

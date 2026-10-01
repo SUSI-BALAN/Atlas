@@ -52,6 +52,8 @@ The connector scheduler remains process-local. Once MongoDB connects at API star
 
 ## Evolution points
 
+Stage 2 places saved repositories, collections, and membership behind a workspace service boundary. Saves copy only allowlisted normalized fields from job-scoped persisted results. Collections use join records rather than embedding repository documents. `workspaceKey: "default"` is an explicit future ownership partition, not a privacy claim.
+
 - Search repository can be replaced by Meilisearch/OpenSearch/Elasticsearch indexing.
 - Scheduler ownership can move to BullMQ/Redis for multi-process execution and automatic restart recovery without changing REST contracts.
 - AI providers implement a separate optional interface and consume cited normalized items.

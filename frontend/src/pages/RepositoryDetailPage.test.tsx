@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ getRepositoryResult: vi.fn() }));
+const api = vi.hoisted(() => ({ getRepositoryResult: vi.fn(), lookupSaved: vi.fn(async () => null), saveRepository: vi.fn(), unsaveRepository: vi.fn() }));
 vi.mock("../services/api", () => api);
 import { RepositoryDetailPage } from "./RepositoryDetailPage";
 

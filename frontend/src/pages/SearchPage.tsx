@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { cancelSearchJob, createSearchJob, getSearchJob, getSearchJobResults, listConnectors, listSearchJobs, retrySearchSource, searchExportUrl } from "../services/api";
 import type { NormalizedRepository, RepositorySearchJobRequest, RepositorySource, SearchJob } from "../types/api";
+import { SaveRepositoryButton } from "../components/SaveRepositoryButton";
 
 const terminal = new Set<SearchJob["status"]>(["completed", "partially_complete", "cancelled", "failed"]);
 const objectIdPattern = /^[a-f\d]{24}$/i;
@@ -105,6 +106,6 @@ export function JobProgress({ job, onCancel, onRetry }: { job: SearchJob; onCanc
 
 function RepositoryCard({ repository, jobId, cursor }: { repository: NormalizedRepository; jobId: string; cursor?: string }) {
   const detail = repository.repositoryId ? `/search/jobs/${jobId}/repositories/${repository.repositoryId}${cursor ? `?cursor=${cursor}` : ""}` : null;
-  return <article className="result-card"><div className="badges"><span className="source-badge">{repository.source}</span>{repository.language && <span>{repository.language}</span>}{repository.license && <span>{repository.license}</span>}</div><h3>{detail ? <Link to={detail}>{repository.fullName}</Link> : <a href={repository.repositoryUrl} target="_blank" rel="noopener noreferrer">{repository.fullName}</a>}</h3><p>{repository.description || "No description supplied by the source."}</p><div className="result-meta"><span>by {repository.owner}</span><span>Stars {repository.stars.toLocaleString()}</span><span>Forks {repository.forks.toLocaleString()}</span>{repository.updatedAt && <span>Updated {new Date(repository.updatedAt).toLocaleDateString()}</span>}</div>{repository.topics.length > 0 && <div className="tags">{repository.topics.slice(0, 8).map((topic) => <span key={topic}>{topic}</span>)}</div>}</article>;
+  return <article className="result-card"><div className="badges"><span className="source-badge">{repository.source}</span>{repository.language && <span>{repository.language}</span>}{repository.license && <span>{repository.license}</span>}</div><h3>{detail ? <Link to={detail}>{repository.fullName}</Link> : <a href={repository.repositoryUrl} target="_blank" rel="noopener noreferrer">{repository.fullName}</a>}</h3><p>{repository.description || "No description supplied by the source."}</p><div className="result-meta"><span>by {repository.owner}</span><span>Stars {repository.stars.toLocaleString()}</span><span>Forks {repository.forks.toLocaleString()}</span>{repository.updatedAt && <span>Updated {new Date(repository.updatedAt).toLocaleDateString()}</span>}</div>{repository.topics.length > 0 && <div className="tags">{repository.topics.slice(0, 8).map((topic) => <span key={topic}>{topic}</span>)}</div>}<div className="card-actions"><SaveRepositoryButton jobId={jobId} repositoryId={repository.repositoryId} source={repository.source} externalId={repository.externalId}/></div></article>;
 }
 function splitList(value: string): string[] { return value.split(",").map((item) => item.trim()).filter(Boolean); }

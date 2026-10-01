@@ -50,3 +50,22 @@ An enabled connector reports `unavailable` until a real provider request complet
 `GET /api/version` returns the application version, the Render commit SHA as the primary deployment identity, and an optional non-secret build ID. Production approval requires the `commit` value to match hosting deploy metadata; `buildId` may be null. Health/readiness alone does not prove which commit is running.
 
 Search-job creation is limited to 20 attempts per client address in 15 minutes. Limit responses use the standard error envelope and `RATE_LIMITED` code.
+
+## Saved repositories
+
+- `POST /api/saved` accepts `{ jobId, repositoryId }` and copies trusted normalized fields from that job-scoped result. Saving is idempotent by workspace/source/external ID.
+- `GET /api/saved` supports cursor pagination (maximum 50) and `source`, `language`, `tag`, `collection`, and `text` filters.
+- `GET /api/saved/lookup?source=<source>&externalId=<id>` returns a saved record or `null`.
+- `GET/PATCH/DELETE /api/saved/:savedId` reads, updates, or unsaves.
+- `GET /api/saved/summary` returns saved and collection counts.
+
+Notes are plain text capped at 4,000 characters. Tags are trimmed, lowercase, unique, capped at 20, and at most 32 characters.
+
+## Collections
+
+- `POST/GET /api/collections` creates or lists collections.
+- `GET/PATCH/DELETE /api/collections/:collectionId` manages one collection.
+- `GET /api/collections/:collectionId/repositories` lists referenced saved repositories.
+- `POST/DELETE /api/collections/:collectionId/repositories/:savedId` adds or removes idempotent membership.
+
+Deleting a collection never deletes saved repositories. These APIs are workspace-wide until authentication is implemented.

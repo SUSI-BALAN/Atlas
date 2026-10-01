@@ -36,4 +36,14 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Database: disconnected")).toBeInTheDocument();
     expect(screen.queryByText("Disconnected")).not.toBeInTheDocument();
   });
+
+  it("shows Mongo-backed saved and collection counts", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input); const data = url.endsWith("/api/health") ? { status: "ok", database: "connected" } : url.endsWith("/api/saved/summary") ? { savedRepositories: 7, collections: 3 } : [];
+      return new Response(JSON.stringify({ success: true, data }), { status: 200 });
+    }));
+    renderDashboard();
+    expect(await screen.findByText("7")).toBeInTheDocument();
+    expect(screen.getByText("3 collections")).toBeInTheDocument();
+  });
 });

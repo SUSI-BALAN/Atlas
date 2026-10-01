@@ -42,6 +42,8 @@ After MongoDB connects, startup reconciliation inspects durable jobs in `queued`
 
 ## Runtime limitations
 
+- Saved repositories, notes, tags, and collections are workspace-wide because authentication is not implemented; they must not be presented as user-private in a multi-user deployment.
+
 - Search/result documents are durable, but scheduling remains process-local. Interrupted work requires an explicit user retry after conservative startup reconciliation. Moving scheduling ownership to a durable queue is a future scale step.
 - Retry-source resumes after the durable page cursor for linear GitLab/Gitea-style pagination; GitHub date-partition retries may revisit a partition, with persisted identity upserts preventing duplicate results.
 - When MongoDB is down, Fast/Deep jobs use bounded in-process storage and All available mode returns `DATABASE_REQUIRED` instead of risking unbounded memory.

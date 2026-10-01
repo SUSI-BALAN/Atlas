@@ -12,6 +12,8 @@ import { connectorsRouter } from "./routes/connectors.routes.js";
 import { searchRouter } from "./routes/search.routes.js";
 import { searchJobsRouter } from "./routes/searchJobs.routes.js";
 import { versionRouter } from "./routes/version.routes.js";
+import { savedRouter } from "./routes/saved.routes.js";
+import { collectionsRouter } from "./routes/collections.routes.js";
 
 export function createApp(options: { nodeEnv?: "development" | "test" | "production" } = {}) {
   const app = express();
@@ -48,6 +50,8 @@ export function createApp(options: { nodeEnv?: "development" | "test" | "product
   app.use("/api/connectors", connectorsRouter);
   app.use("/api/search", searchRouter);
   app.use("/api/search/jobs", (req, res, next) => req.method === "POST" && req.path === "/" ? searchJobCreationLimit(req, res, next) : next(), searchJobsRouter);
+  app.use("/api/saved", savedRouter);
+  app.use("/api/collections", collectionsRouter);
   app.use(notFound);
   app.use(createErrorHandler(nodeEnv));
   return app;

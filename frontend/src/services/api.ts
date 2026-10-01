@@ -1,4 +1,4 @@
-import type { ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse } from "../types/api";
+import type { Collection, ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SavedPage, SavedRepository, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse } from "../types/api";
 
 interface Envelope<T> { success: boolean; data: T; error?: { message: string; details?: unknown }; meta?: { requestId?: string } }
 
@@ -57,3 +57,18 @@ export function getRepositoryResult(jobId: string, repositoryId: string): Promis
 export function cancelSearchJob(jobId: string): Promise<SearchJob> { return api(`/api/search/jobs/${jobId}/cancel`, { method: "POST" }); }
 export function retrySearchSource(jobId: string, source: RepositorySource): Promise<SearchJob> { return api(`/api/search/jobs/${jobId}/sources/${source}/retry`, { method: "POST" }); }
 export function searchExportUrl(jobId: string, format: "json" | "csv"): string { return buildApiUrl(`/api/search/jobs/${jobId}/export?format=${format}`); }
+export function saveRepository(jobId:string,repositoryId:string):Promise<SavedRepository>{return api("/api/saved",{method:"POST",body:JSON.stringify({jobId,repositoryId})});}
+export function lookupSaved(source:RepositorySource,externalId:string):Promise<SavedRepository|null>{return api(`/api/saved/lookup?${new URLSearchParams({source,externalId})}`);}
+export function listSaved(params:Record<string,string|undefined>={}):Promise<SavedPage>{const query=new URLSearchParams();for(const [key,value] of Object.entries(params))if(value)query.set(key,value);return api(`/api/saved?${query}`);}
+export function getSaved(id:string):Promise<SavedRepository>{return api(`/api/saved/${id}`);}
+export function updateSaved(id:string,patch:{note?:string;tags?:string[]}):Promise<SavedRepository>{return api(`/api/saved/${id}`,{method:"PATCH",body:JSON.stringify(patch)});}
+export function unsaveRepository(id:string):Promise<{deleted:boolean}>{return api(`/api/saved/${id}`,{method:"DELETE"});}
+export function workspaceSummary():Promise<{savedRepositories:number;collections:number}>{return api("/api/saved/summary");}
+export function listCollections():Promise<Collection[]>{return api("/api/collections");}
+export function createCollection(input:{name:string;description:string}):Promise<Collection>{return api("/api/collections",{method:"POST",body:JSON.stringify(input)});}
+export function getCollection(id:string):Promise<Collection>{return api(`/api/collections/${id}`);}
+export function updateCollection(id:string,patch:{name?:string;description?:string}):Promise<Collection>{return api(`/api/collections/${id}`,{method:"PATCH",body:JSON.stringify(patch)});}
+export function deleteCollection(id:string):Promise<{deleted:boolean}>{return api(`/api/collections/${id}`,{method:"DELETE"});}
+export function listCollectionRepositories(id:string,cursor?:string):Promise<SavedPage>{const query=new URLSearchParams({limit:"20"});if(cursor)query.set("cursor",cursor);return api(`/api/collections/${id}/repositories?${query}`);}
+export function addToCollection(collectionId:string,savedId:string):Promise<Collection>{return api(`/api/collections/${collectionId}/repositories/${savedId}`,{method:"POST"});}
+export function removeFromCollection(collectionId:string,savedId:string):Promise<{deleted:boolean}>{return api(`/api/collections/${collectionId}/repositories/${savedId}`,{method:"DELETE"});}

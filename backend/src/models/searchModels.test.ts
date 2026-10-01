@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { RepositoryResultModel } from "./repositoryResult.model.js";
 import { SearchCacheModel } from "./searchCache.model.js";
 import { SearchJobModel } from "./searchJob.model.js";
+import { SavedRepositoryModel } from "./savedRepository.model.js";
+import { CollectionMembershipModel, CollectionModel } from "./collection.model.js";
 
 describe("search persistence indexes", () => {
   it("enforces per-job source identity and cache expiry indexes", () => {
@@ -12,5 +14,8 @@ describe("search persistence indexes", () => {
     expect(SearchCacheModel.schema.indexes()).toEqual(expect.arrayContaining([
       [{ expiresAt: 1 }, expect.objectContaining({ expireAfterSeconds: 0 })]
     ]));
+    expect(SavedRepositoryModel.schema.indexes()).toEqual(expect.arrayContaining([[{ workspaceKey: 1, source: 1, externalId: 1 }, expect.objectContaining({ unique: true })]]));
+    expect(CollectionModel.schema.indexes()).toEqual(expect.arrayContaining([[{ workspaceKey: 1, createdAt: -1, _id: -1 }, expect.any(Object)]]));
+    expect(CollectionMembershipModel.schema.indexes()).toEqual(expect.arrayContaining([[{ workspaceKey: 1, collectionId: 1, savedId: 1 }, expect.objectContaining({ unique: true })]]));
   });
 });

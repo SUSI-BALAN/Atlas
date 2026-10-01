@@ -92,3 +92,11 @@ export interface SearchJobSummary {
   status: SearchJob["status"]; totalUnique: number; createdAt: string; startedAt: string | null; completedAt: string | null; cached: boolean;
 }
 export interface SearchJobHistoryPage { jobs: SearchJobSummary[]; nextCursor: string | null; hasMore: boolean }
+export interface SavedRepository {
+  savedId: string; source: RepositorySource; externalId: string; owner: string; name: string; fullName: string; description: string | null;
+  repositoryUrl: string; language: string | null; languages: string[]; topics: string[]; stars: number; forks: number; watchers: number | null;
+  openIssues: number | null; license: string | null; sourceCreatedAt: string | null; sourceUpdatedAt: string | null; pushedAt: string | null;
+  archived: boolean; fork: boolean; visibility: string | null; sourceMetadata: Record<string, unknown>; note: string; tags: string[]; createdAt: string | null; updatedAt: string | null;
+}
+export interface SavedPage { repositories: SavedRepository[]; nextCursor: string | null; hasMore: boolean }
+export interface Collection { collectionId: string; name: string; description: string; repositoryCount: number; createdAt: string | null; updatedAt: string | null }

@@ -11,7 +11,8 @@ const api = vi.hoisted(() => ({
   getSearchJob: vi.fn(),
   getSearchJobResults: vi.fn(async () => ({ results: [], nextCursor: null, hasMore: false })),
   createSearchJob: vi.fn(), cancelSearchJob: vi.fn(), retrySearchSource: vi.fn(),
-  searchExportUrl: vi.fn((jobId: string, format: string) => `/api/search/jobs/${jobId}/export?format=${format}`)
+  searchExportUrl: vi.fn((jobId: string, format: string) => `/api/search/jobs/${jobId}/export?format=${format}`),
+  lookupSaved: vi.fn(async () => null), saveRepository: vi.fn(), unsaveRepository: vi.fn()
 }));
 vi.mock("../services/api", () => api);
 

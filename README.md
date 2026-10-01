@@ -27,6 +27,8 @@ Results are normalized and persisted one batch at a time, displayed through curs
 
 Universal Search is URL-driven: `/search?job=<jobId>` restores a persisted job after refresh and browser navigation. The page includes bounded, newest-first search history, job-scoped repository detail views, explicit partial/rate-limit/provider-limit states, and cursor-aware return navigation. On API startup, interrupted durable jobs are never replayed automatically; active sources become retryable interrupted failures while previously persisted results remain intact.
 
+Repositories can be saved from results or detail pages, annotated with plain-text notes and normalized tags, and organized into reusable collections. Saved data and collections are currently workspace-wide because authentication is not yet implemented.
+
 ## Verification
 
 ```powershell
@@ -38,5 +40,6 @@ npm.cmd run build
 See [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) for current implementation status and [docs/api.md](./docs/api.md) for API contracts.
 
 The Stage 1 implementation and handoff are recorded in [docs/stage-1-search-workflow.md](./docs/stage-1-search-workflow.md).
+Stage 2 is documented in [docs/stage-2-saved-collections.md](./docs/stage-2-saved-collections.md).
 
 The evidence-based Stage 0 feature matrix, findings, blockers, and Stage 1 acceptance criteria are recorded in [docs/stage-0-audit.md](./docs/stage-0-audit.md).

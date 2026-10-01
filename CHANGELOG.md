@@ -6,6 +6,8 @@ All notable project changes are recorded here.
 
 ### Added
 
+- Stage 2 durable saved repositories and collections with safe snapshots, notes, tags, reference-only membership, search/detail integration, and workspace summary counts.
+
 - Stage 1 durable search workflow: URL-restored jobs and result cursors, bounded cursor-paged search history, normalized job-scoped repository details, responsive state messaging, and conservative interrupted-job reconciliation with explicit retry.
 
 - Durable asynchronous repository search jobs with progressive per-source status, cancellation, source retry, cursor-paged results, and backend-streamed JSON/CSV export.
