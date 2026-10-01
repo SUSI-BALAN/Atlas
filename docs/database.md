@@ -32,3 +32,10 @@ Stage 4 reads existing persisted collections directly and creates no analytics s
 - `watch_check_runs`: `{ workspaceKey: 1, status: 1, createdAt: -1 }` supports status/time monitoring aggregation.
 
 Saved, collection, membership, and watchlist analytics reuse their existing workspace indexes. Collection/watchlist lists are capped at 25 and use aggregation lookups rather than N+1 reads. Search jobs and repository results are the pre-workspace shared Atlas dataset; analytics do not fabricate a workspace field for them.
+
+## AI research collections
+
+- `ai_research_sessions`: title and context references. `{ workspaceKey: 1, updatedAt: -1, _id: -1 }` supports stable history.
+- `ai_research_messages`: user/assistant content, validated citations, safe provider/model/usage metadata, and grounding/generation state. `{ workspaceKey: 1, sessionId: 1, createdAt: 1, _id: 1 }` supports history. Unique partial indexes on `clientRequestId` and `inReplyTo` prevent duplicate requests and replies.
+
+Sessions do not copy source datasets. Messages never store system instructions, raw provider requests/responses, hidden reasoning, credentials, saved notes, or raw provider metadata. Deletion is application-level: deleting the session before messages can leave orphan AI messages if the second write fails without transactions. Assistant insertion and user completion are also separate writes; the unique reply index prevents a second assistant reply, while reconciliation remains future work.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Stage 5 - Grounded AI research
+
+- Replaced the AI placeholder with optional, durable, explicitly scoped Atlas research sessions.
+- Added provider-neutral `none`, local, OpenAI, and DeepSeek adapters with server-only configuration, bounded timeouts, safe health/status, and usage metadata.
+- Added allowlisted context building, citation validation, prompt-injection defenses, idempotent generation requests, and dedicated generation rate limiting.
+- Added the accessible AI session/context/conversation UI and focused backend/frontend tests without live providers or production data.
+
 ## Stage 4 - Analytics and insights
 
 - Replaced the Analytics placeholder with real persisted overview, source, language, saved-research, monitoring, and change-timeline metrics.

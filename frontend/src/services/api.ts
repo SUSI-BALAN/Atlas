@@ -1,4 +1,4 @@
-import type { AnalyticsLanguages, AnalyticsSources, AnalyticsSummary, ChangeAnalytics, ChangeEvent, Collection, ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SavedAnalytics, SavedPage, SavedRepository, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse, WatchedRepository, Watchlist, WatchlistAnalytics, WatchRun } from "../types/api";
+import type { AIContextSelection, AIResearchMessage, AIResearchSession, AIStatus, AnalyticsLanguages, AnalyticsSources, AnalyticsSummary, ChangeAnalytics, ChangeEvent, Collection, ConnectorSummary, NormalizedRepository, RepositoryResultPage, RepositorySearchJobRequest, RepositorySource, SavedAnalytics, SavedPage, SavedRepository, SearchJob, SearchJobHistoryPage, SearchRequest, SearchResponse, WatchedRepository, Watchlist, WatchlistAnalytics, WatchRun } from "../types/api";
 
 interface Envelope<T> { success: boolean; data: T; error?: { message: string; details?: unknown }; meta?: { requestId?: string } }
 
@@ -90,3 +90,10 @@ export function analyticsLanguages(limit=10):Promise<AnalyticsLanguages>{return 
 export function analyticsSaved(limit=10):Promise<SavedAnalytics>{return api(`/api/analytics/saved?limit=${limit}`)}
 export function analyticsWatchlists(params:Record<string,string|undefined>):Promise<WatchlistAnalytics>{return api(`/api/analytics/watchlists${analyticsQuery(params)}`)}
 export function analyticsChanges(params:Record<string,string|undefined>):Promise<ChangeAnalytics>{return api(`/api/analytics/changes${analyticsQuery(params)}`)}
+export function aiStatus():Promise<AIStatus>{return api("/api/ai/status")}
+export function listAISessions(cursor?:string):Promise<{sessions:AIResearchSession[];nextCursor:string|null;hasMore:boolean}>{const q=new URLSearchParams({limit:"20"});if(cursor)q.set("cursor",cursor);return api(`/api/ai/sessions?${q}`)}
+export function createAISession(title:string,contextSelection:AIContextSelection):Promise<AIResearchSession>{return api("/api/ai/sessions",{method:"POST",body:JSON.stringify({title,contextSelection})})}
+export function updateAISession(id:string,patch:{title?:string;contextSelection?:AIContextSelection}):Promise<AIResearchSession>{return api(`/api/ai/sessions/${id}`,{method:"PATCH",body:JSON.stringify(patch)})}
+export function deleteAISession(id:string):Promise<{deleted:boolean}>{return api(`/api/ai/sessions/${id}`,{method:"DELETE"})}
+export function listAIMessages(id:string):Promise<{messages:AIResearchMessage[];nextCursor:string|null;hasMore:boolean}>{return api(`/api/ai/sessions/${id}/messages?limit=50`)}
+export function sendAIMessage(id:string,content:string,clientRequestId:string):Promise<{user:AIResearchMessage;assistant:AIResearchMessage;context:{truncated:boolean;selectedCount:number;includedCount:number;missingReferences:string[]}|null;idempotent?:boolean}>{return api(`/api/ai/sessions/${id}/messages`,{method:"POST",body:JSON.stringify({content,clientRequestId})})}

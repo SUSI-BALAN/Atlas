@@ -61,4 +61,5 @@ Stage 2 places saved repositories, collections, and membership behind a workspac
 - Search repository can be replaced by Meilisearch/OpenSearch/Elasticsearch indexing.
 - Scheduler ownership can move to BullMQ/Redis for multi-process execution and automatic restart recovery without changing REST contracts.
 - AI providers implement a separate optional interface and consume cited normalized items.
+- Stage 5 implements that interface with `none`, local, OpenAI, and DeepSeek adapters. A separate context builder resolves only selected Atlas references into bounded, allowlisted evidence. The research service owns fixed server instructions, history/output limits, timeout, idempotency, citation validation, safe persistence, and error classification. Provider-specific objects do not escape adapters, and providers receive no browsing, arbitrary URL, tool, or execution capability.
 - Authentication middleware can add users/teams without changing connector contracts.

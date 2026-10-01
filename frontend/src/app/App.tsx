@@ -14,6 +14,7 @@ import { WatchlistsPage } from "../pages/WatchlistsPage";
 import { WatchlistDetailPage } from "../pages/WatchlistDetailPage";
 import { ChangesPage } from "../pages/ChangesPage";
 import { AnalyticsPage } from "../pages/AnalyticsPage";
+import { AIResearchPage } from "../pages/AIResearchPage";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
@@ -35,8 +36,9 @@ export function App() {
             <Route path="watchlists/:id" element={<WatchlistDetailPage />} />
             <Route path="changes" element={<ChangesPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="ai" element={<AIResearchPage />} />
             {[
-              ["ai", "AI research"], ["settings", "Settings"]
+              ["settings", "Settings"]
             ].map(([path, title]) => <Route key={path} path={path} element={<PlaceholderPage title={title} />} />)}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

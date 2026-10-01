@@ -33,6 +33,8 @@ Repositories can be saved from results or detail pages, annotated with plain-tex
 
 The `/analytics` workspace presents real descriptive metrics from persisted searches, collected results, saved research, collections, watchlists, check runs, and change events. Date ranges are bounded to 365 days, unknown languages remain explicit, and empty installations never receive fabricated sample values. Analytics remain workspace-wide under `workspaceKey = "default"`.
 
+The optional `/ai` workspace provides grounded research sessions over explicitly selected Atlas records. `AI_PROVIDER=none` is the supported default and leaves every non-AI feature available. Local, OpenAI, and DeepSeek adapters are server-side only; saved notes, raw provider metadata, secrets, and unselected records are excluded from AI context. AI research history is shared within the unauthenticated `default` workspace.
+
 ## Verification
 
 ```powershell
@@ -47,5 +49,6 @@ The Stage 1 implementation and handoff are recorded in [docs/stage-1-search-work
 Stage 2 is documented in [docs/stage-2-saved-collections.md](./docs/stage-2-saved-collections.md).
 Stage 3 is documented in [docs/stage-3-watchlists-changes.md](./docs/stage-3-watchlists-changes.md).
 Stage 4 is documented in [docs/stage-4-analytics-insights.md](./docs/stage-4-analytics-insights.md).
+Stage 5 is documented in [docs/stage-5-ai-research.md](./docs/stage-5-ai-research.md).
 
 The evidence-based Stage 0 feature matrix, findings, blockers, and Stage 1 acceptance criteria are recorded in [docs/stage-0-audit.md](./docs/stage-0-audit.md).

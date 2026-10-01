@@ -78,3 +78,9 @@ An actual credential was found in the previous `.env.example` during inspection 
 3. Start MongoDB before exercising All available mode or persistent cache/export behavior.
 4. Enable only desired connectors and supply backend-only tokens when higher authorized limits are needed.
 5. Never claim full provider coverage beyond accessible API pages or claim live persistence without observing MongoDB writes.
+
+## Stage 5 grounded AI research
+
+Stage 5 replaces the AI placeholder with optional, durable research sessions. The server builds bounded context only from selected search jobs, saved repositories, collections, watchlists, changes, and an explicitly requested analytics summary. Notes, source metadata, raw provider payloads, and unrelated records are never included. Provider citation IDs are matched against the supplied context; unknown citations are discarded and any response with incomplete citation validation is marked not fully grounded.
+
+`AI_PROVIDER=none` remains the default and returns deterministic `AI_DISABLED` generation errors while the rest of Atlas operates normally. Local, OpenAI, and DeepSeek adapters share a provider-neutral contract. Generation is non-streaming, has a dedicated rate limit and timeout, and persists a user message with safe failure classification when generation fails. AI history remains shared in `workspaceKey = "default"`; authentication and production AI infrastructure remain future work.

@@ -44,3 +44,11 @@ Local/internal URL access, if ever added, must be a separate trusted-administrat
 ## Privacy
 
 Persist only fields needed for research. Distinguish public source data, private user notes, and secrets. Provide explicit retention/deletion controls in the relevant milestone. Public availability does not justify unnecessary personal-data collection.
+
+## AI boundary
+
+AI is disabled by default. Provider keys/configuration remain backend-only. External providers receive only selected, allowlisted Atlas context; saved notes, source metadata, raw payloads, logs, headers, environment variables, filesystem paths, and unrelated records are excluded. Fixed server instructions treat repository and user text as untrusted data and prohibit following embedded instructions, browsing, URL fetching, tools, execution, secret disclosure, or external actions. Logs contain safe identifiers, classifications, timing, grounding, and token counts—not prompts or answers.
+
+The validated backend-only `AI_MAX_OUTPUT_TOKENS` setting bounds provider generation (128–4,096; default 1,200) through each supported request protocol. The existing post-response character cap remains in effect. Custom local services may ignore Ollama's `options.num_predict`; this limitation is documented in the Stage 5 guide.
+
+Citation IDs are accepted only when present in the supplied context. Unknown IDs are discarded, and a response containing any unknown citation is marked not fully grounded. The UI states that history is shared in the unauthenticated workspace; it is not private or per-user.

@@ -85,4 +85,17 @@ All routes return the standard `{ success, data, meta: { requestId } }` envelope
 - `GET /api/analytics/changes?from=<ISO>&to=<ISO>&source=github` returns factual type/source/day groups and distinct changed target counts.
 - `GET /api/analytics/searches?from=<ISO>&to=<ISO>` returns job status, collection mode, source usage, average persisted result count, and daily activity.
 
+## AI research
+
+All AI routes use the standard envelope and remain scoped to the shared `default` workspace.
+
+- `GET /api/ai/status` returns safe provider readiness, configured model name, and capabilities. It never returns credentials, provider bodies, or the system instruction.
+- `POST /api/ai/sessions` creates a session with a title and explicit `contextSelection` references.
+- `GET /api/ai/sessions?cursor=&limit=` lists sessions newest-first; limit is 1–50.
+- `GET/PATCH/DELETE /api/ai/sessions/:sessionId` reads, updates, or deletes a session. Deletion removes AI messages only.
+- `GET /api/ai/sessions/:sessionId/messages?cursor=&limit=` returns bounded chronological message pages.
+- `POST /api/ai/sessions/:sessionId/messages` accepts `{ content, clientRequestId }`. Content is capped at 4,000 characters and request IDs make retries idempotent.
+
+Selections allow at most 5 search jobs, 20 saved repositories, 5 collections, 5 watchlists, 20 changes, and 30 total selections. Generation is limited to 10 requests per client per 15 minutes. Safe Atlas error codes distinguish disabled, timeout, authentication, provider rate limit, malformed response, unavailable, and misconfigured states.
+
 Date-aware routes default to the last 30 days, require ISO date-times with offsets, and reject reversed ranges or ranges over 365 days. Limits are 1–25. Source is restricted to the connector enum. Workspace-owned metrics use `workspaceKey = "default"`; collected search data is the shared Atlas dataset.

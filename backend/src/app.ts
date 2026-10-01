@@ -17,6 +17,7 @@ import { collectionsRouter } from "./routes/collections.routes.js";
 import { watchlistsRouter } from "./routes/watchlists.routes.js";
 import { changesRouter } from "./routes/changes.routes.js";
 import { analyticsRouter } from "./routes/analytics.routes.js";
+import { aiRouter } from "./routes/ai.routes.js";
 
 export function createApp(options: { nodeEnv?: "development" | "test" | "production" } = {}) {
   const app = express();
@@ -59,6 +60,8 @@ export function createApp(options: { nodeEnv?: "development" | "test" | "product
   app.use("/api/watchlists",(req,res,next)=>req.method==="POST"&&req.path.endsWith("/check")?watchCheckLimit(req,res,next):next(),watchlistsRouter);
   app.use("/api/changes", changesRouter);
   app.use("/api/analytics", analyticsRouter);
+  const aiGenerationLimit=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-8",legacyHeaders:false,handler:(_req,res)=>res.status(429).json({success:false,error:{code:"AI_RATE_LIMITED",message:"Too many AI generation requests; try again later"},meta:{requestId:res.locals.requestId}})});
+  app.use("/api/ai",(req,res,next)=>req.method==="POST"&&req.path.endsWith("/messages")?aiGenerationLimit(req,res,next):next(),aiRouter);
   app.use(notFound);
   app.use(createErrorHandler(nodeEnv));
   return app;
