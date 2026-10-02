@@ -1,6 +1,6 @@
 # Atlas Multi-Forge Research
 
-Stage 6 adds owner-controlled login, durable server sessions, CSRF protection, workspace-scoped research data, and a locally configured same-origin API proxy. This is not deployment authorization. See [the Stage 6 guide](docs/stage-6-auth-production-hardening.md) and [release runbook](docs/production-release-runbook.md).
+Stage 7 adds local release preflight, bounded hosted verification, read-only index diagnostics, and backup/rollback guidance around the Stage 6 security model. It adds no product feature and is not deployment authorization. See [the Stage 7 guide](docs/stage-7-release-readiness.md), [release checklist](docs/release-checklist.md), and [release runbook](docs/production-release-runbook.md).
 
 Atlas is a local-first repository research application. It collects public or explicitly authorized repository metadata from GitHub, GitLab, Codeberg, Gitea.com, and Forgejo through their REST APIs, normalizes it, and keeps provenance links to the original sources.
 
@@ -41,7 +41,10 @@ The optional `/ai` workspace provides grounded research sessions over explicitly
 npm.cmd run typecheck
 npm.cmd test
 npm.cmd run build
+npm.cmd run release:preflight
 ```
+
+The preflight intentionally requires a clean `stage7-release-readiness` tree. Hosted checks require an explicit URL: `node scripts/verify-production.mjs --base-url https://frontend.example --expected-commit <sha> --production`. Do not point this at a hosted environment without separate authorization. Default hosted checks are read-only; optional smoke credentials are read from `ATLAS_SMOKE_EMAIL` and `ATLAS_SMOKE_PASSWORD` and are never printed.
 
 See [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) for current implementation status and [docs/api.md](./docs/api.md) for API contracts.
 
@@ -51,5 +54,6 @@ Stage 3 is documented in [docs/stage-3-watchlists-changes.md](./docs/stage-3-wat
 Stage 4 is documented in [docs/stage-4-analytics-insights.md](./docs/stage-4-analytics-insights.md).
 Stage 5 is documented in [docs/stage-5-ai-research.md](./docs/stage-5-ai-research.md).
 Stage 6 is documented in [docs/stage-6-auth-production-hardening.md](./docs/stage-6-auth-production-hardening.md).
+Stage 7 is documented in [docs/stage-7-release-readiness.md](./docs/stage-7-release-readiness.md).
 
 The evidence-based Stage 0 feature matrix, findings, blockers, and Stage 1 acceptance criteria are recorded in [docs/stage-0-audit.md](./docs/stage-0-audit.md).

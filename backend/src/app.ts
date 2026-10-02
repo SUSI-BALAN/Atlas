@@ -27,7 +27,10 @@ export function createApp(options: { nodeEnv?: "development" | "test" | "product
   if (nodeEnv === "production") app.set("trust proxy", 1);
   app.disable("x-powered-by");
   app.use(requestId);
-  app.use(pinoHttp({ logger }));
+  app.use(pinoHttp({
+    logger,
+    customProps: (_req, res) => ({ requestId: res.locals.requestId, releaseCommit: env.RENDER_GIT_COMMIT ?? null })
+  }));
   app.use(helmet());
   app.use(cors({
     origin(origin, callback) {

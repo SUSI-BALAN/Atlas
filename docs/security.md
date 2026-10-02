@@ -54,3 +54,10 @@ AI is disabled by default. Provider keys/configuration remain backend-only. Exte
 The validated backend-only `AI_MAX_OUTPUT_TOKENS` setting bounds provider generation (128–4,096; default 1,200) through each supported request protocol. The existing post-response character cap remains in effect. Custom local services may ignore Ollama's `options.num_predict`; this limitation is documented in the Stage 5 guide.
 
 Citation IDs are accepted only when present in the supplied context. Unknown IDs are discarded, and a response containing any unknown citation is marked not fully grounded. AI history is shared within the authenticated workspace, not private to a user.
+`AI_PROVIDER=none` remains a supported release mode. Search, saved research, collections, watchlists, analytics, and authentication do not depend on an AI provider. Release verification must treat an optional provider outage as an AI-only degradation and must never log full prompts or provider credentials.
+
+## Stage 7 operational verification
+
+The release verifier accepts only an explicit HTTP(S) origin, bounds redirects/timeouts, performs read-only checks by default, and reports cookie attributes without values. Hosted HTTPS verification requires HSTS, CSP with `frame-ancestors`, nosniff, and a referrer policy. Local HTTP does not fail solely for missing HSTS. Record mutations are not part of the default smoke test.
+
+Index verification is read-only and migration remains the only schema/index transition owner. Production backup existence, hosted proxy behavior, trust-proxy semantics, cookies, and workspace A/B isolation require separately authorized evidence; local configuration cannot prove them.

@@ -2,6 +2,10 @@
 
 This is a future checklist, not permission to access or change production. First complete the owner gates in [production-release-runbook.md](production-release-runbook.md). Do not use, inspect, or reproduce the historically exposed MongoDB credential. Record request IDs and categories, never passwords, cookies, CSRF tokens, private notes, AI conversations, or connection strings.
 
+Hosted verification is global step 15. It begins only after the runbook's credential replacement/revocation, recovery-evidence, migration approval/apply/verification, exact-SHA, merge, Render, and Netlify gates complete in order. A failed hosted gate invokes the reviewed rollback matrix.
+
+After separate hosted-test approval, run `node scripts/verify-production.mjs --base-url <frontend-origin> --expected-commit <sha> --production`. The default is read-only and verifies health, readiness, version, headers, CSP, JSON proxy behavior, and unauthenticated rejection. Authentication is opt-in through `ATLAS_SMOKE_EMAIL` and `ATLAS_SMOKE_PASSWORD`; its output redacts session/cookie and CSRF values. Do not pass credentials on the command line.
+
 ## Release identity and infrastructure
 
 - [ ] Owner confirms a replacement least-privilege MongoDB user, new Render `MONGODB_URI`, verified connection, old-user revocation, and access review.
@@ -40,3 +44,10 @@ This is a future checklist, not permission to access or change production. First
 - [ ] Approved `--apply` backfill preserves IDs, makes search/cache/legacy records workspace-owned, and is idempotent. Re-run dry-run confirms zero missing keys.
 - [ ] A reviewed backup/restore path and secure rollback commit exist. Never roll back to unauthenticated code against protected multi-workspace data or restore the exposed credential.
 - [ ] Production evidence is captured without secrets and owner signs off before declaring release complete.
+
+## Netlify proxy and trust-proxy hosted plan
+
+- [ ] From the browser origin, confirm `/api/version` is JSON from Render rather than `index.html`; confirm `/api/*` precedes SPA fallback and production has no `VITE_API_BASE_URL` override.
+- [ ] Confirm login `Set-Cookie` reaches the browser and subsequent same-origin authenticated requests reach Render. Confirm CSP `connect-src 'self'` remains sufficient.
+- [ ] Record the normal client IP representation in sanitized logs, then send an approved request with a spoofed `X-Forwarded-For` value through the public path and confirm the application trusts only the configured single proxy hop.
+- [ ] From controlled clients, verify the five-attempt login limiter and 120/minute global limiter identify clients correctly through the real hosting path. Avoid load tests or broad traffic. Do not weaken `trust proxy` to make a test pass.

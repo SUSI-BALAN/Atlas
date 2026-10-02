@@ -1,6 +1,6 @@
 # Project Context
 
-Stage 6 locally adds owner-controlled authentication, workspace isolation, CSRF, an additive migration path, and a same-origin API proxy. The older stage snapshots below are historical; authentication, analytics, and AI are now implemented, but no production release is authorized. See `docs/stage-6-auth-production-hardening.md`.
+Stage 7 locally adds release preflight, safe hosted verification, read-only index diagnostics, backup/recovery guidance, and rollback gates around Stage 6 authentication and workspace isolation. It does not add a product feature or authorize production release. See `docs/stage-7-release-readiness.md`.
 
 ## Product
 
@@ -43,6 +43,9 @@ GitHub is enabled by default. GitLab, Codeberg, Gitea, and Forgejo are visible b
 After MongoDB connects, startup reconciliation inspects durable jobs in `queued`, `running`, or `rate_limited`. Atlas does not automatically replay provider requests. Each nonterminal source is changed to a retryable failed source with code `PROCESS_INTERRUPTED`; a job becomes `partially_complete` when another source had completed, otherwise `failed`. Existing cursors and `repository_results` are retained. The user can explicitly retry an affected source, using the existing cursor-aware retry behavior and unique identity index.
 
 ## Runtime limitations
+
+- Local configuration tests cannot prove Netlify-to-Render forwarding, hosted cookie rewriting, HSTS, real trust-proxy behavior, production index state, or backup availability. These remain explicit hosted/owner verification gates.
+- Workspace isolation release proof requires separately approved disposable accounts in two workspaces; the default smoke script does not create users or records.
 
 - Saved repositories, notes, tags, collections, and AI history are shared among authenticated members of their workspace; they are not per-user private. Existing default records require controlled migration before release.
 

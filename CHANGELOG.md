@@ -1,5 +1,11 @@
 # Changelog
 
+## Stage 7 - Release readiness (local owner review)
+
+- Added a clean-tree release preflight covering branch/base identity, static repository hygiene, typecheck, regressions, build, production dependency audit, and secret patterns.
+- Added bounded, explicit-URL hosted verification for health/readiness/version, expected commit, API proxy behavior, security headers, CSP, unauthenticated protection, and opt-in authentication checks with redacted cookie inspection.
+- Added read-only index verification plus release, backup/recovery, migration sequencing, trust-proxy, and rollback documentation. No production, deployment, migration, or credential action was performed.
+
 ## Stage 6 - Authentication and production hardening (local owner review)
 
 - Added owner bootstrap/reset CLIs, scrypt password storage, hashed durable sessions, host-only cookies, CSRF, login/logout/me APIs, and secure-by-default application routing.
