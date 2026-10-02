@@ -29,3 +29,16 @@ export interface SearchJobSnapshot {
   startedAt: string | null;
   completedAt: string | null;
 }
+
+export interface SearchJobSummary {
+  jobId: string;
+  query: string;
+  requestedSources: RepositorySource[];
+  collectionMode: RepositorySearchRequest["collectionMode"];
+  status: SearchJobStatus;
+  totalUnique: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  cached: boolean;
+}

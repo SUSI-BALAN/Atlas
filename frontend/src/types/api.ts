@@ -66,7 +66,7 @@ export interface RepositorySearchJobRequest {
   resultLimit?: number | null;
 }
 export interface NormalizedRepository {
-  id: string; source: RepositorySource; externalId: string; owner: string; name: string; fullName: string;
+  id: string; repositoryId?: string; source: RepositorySource; externalId: string; owner: string; name: string; fullName: string;
   description: string | null; repositoryUrl: string; cloneUrl: string | null; defaultBranch: string | null;
   language: string | null; languages: string[]; topics: string[]; stars: number; forks: number;
   watchers: number | null; openIssues: number | null; license: string | null; createdAt: string | null;
@@ -87,3 +87,32 @@ export interface SearchJob {
   createdAt: string; startedAt: string | null; completedAt: string | null;
 }
 export interface RepositoryResultPage { results: NormalizedRepository[]; nextCursor: string | null; hasMore: boolean }
+export interface SearchJobSummary {
+  jobId: string; query: string; requestedSources: RepositorySource[]; collectionMode: RepositorySearchJobRequest["collectionMode"];
+  status: SearchJob["status"]; totalUnique: number; createdAt: string; startedAt: string | null; completedAt: string | null; cached: boolean;
+}
+export interface SearchJobHistoryPage { jobs: SearchJobSummary[]; nextCursor: string | null; hasMore: boolean }
+export interface SavedRepository {
+  savedId: string; source: RepositorySource; externalId: string; owner: string; name: string; fullName: string; description: string | null;
+  repositoryUrl: string; language: string | null; languages: string[]; topics: string[]; stars: number; forks: number; watchers: number | null;
+  openIssues: number | null; license: string | null; sourceCreatedAt: string | null; sourceUpdatedAt: string | null; pushedAt: string | null;
+  archived: boolean; fork: boolean; visibility: string | null; sourceMetadata: Record<string, unknown>; note: string; tags: string[]; createdAt: string | null; updatedAt: string | null;
+}
+export interface SavedPage { repositories: SavedRepository[]; nextCursor: string | null; hasMore: boolean }
+export interface Collection { collectionId: string; name: string; description: string; repositoryCount: number; createdAt: string | null; updatedAt: string | null }
+export interface Watchlist { watchlistId:string;name:string;description:string;enabled:boolean;checkIntervalMinutes:number;lastCheckedAt:string|null;nextCheckAt:string|null;targetCount:number;createdAt:string|null;updatedAt:string|null }
+export interface WatchRun {runId:string;watchlistId:string;status:string;startedAt:string|null;completedAt:string|null;checked:number;changed:number;unchanged:number;failed:number;rateLimited:number;errors:{savedId:string;code:string}[]}
+export interface WatchedRepository {savedId:string;source:RepositorySource;externalId:string;fullName:string;lastCheckedAt:string|null;lastSuccessfulCheckAt:string|null;consecutiveFailures:number;lastError:{code:string;category:string;occurredAt:string}|null}
+export interface ChangeEvent {changeId:string;watchlistId:string;watchlistName:string;savedId:string;repositoryName:string;source:RepositorySource;externalId:string;detectedAt:string;changeTypes:string[];changes:Record<string,{previous:unknown;current:unknown;added?:string[];removed?:string[]}>}
+export interface AnalyticsSummary {totalSearchJobs:number;completedSearchJobs:number;partiallyCompletedSearchJobs:number;totalCollectedRepositories:number;savedRepositories:number;collections:number;watchlists:number;recentChanges:number;enabledWatchlists:number;monitoredRepositories:number;lastSearchAt:string|null;lastSavedAt:string|null;lastChangeAt:string|null}
+export interface DistributionItem {count:number;percentage:number}
+export interface AnalyticsSources {total:number;sources:Array<DistributionItem&{source:string}>;scope:string}
+export interface AnalyticsLanguages {total:number;excludedCount:number;languages:Array<DistributionItem&{language:string}>}
+export interface SavedAnalytics {total:number;bySource:Array<DistributionItem&{source:string}>;byLanguage:Array<DistributionItem&{language:string}>;topTags:Array<{tag:string;count:number}>;repositoriesInCollections:number;repositoriesInZeroCollections:number;averageCollectionsPerSavedRepository:number}
+export interface WatchlistAnalytics {totalWatchlists:number;enabledWatchlists:number;disabledWatchlists:number;monitoredRepositories:number;successfulChecks:number;partialChecks:number;failedChecks:number;rateLimitedChecks:number;mostRecentRunAt:string|null;watchlists:Array<{watchlistId:string;name:string;enabled:boolean;targetCount:number;latestRunStatus:string|null;recentChangeCount:number}>}
+export interface ChangeAnalytics {totalChanges:number;changesByType:Array<{changeType:string;count:number}>;changesBySource:Array<{source:string;count:number}>;changesByDay:Array<{date:string;count:number}>;repositoriesWithChanges:number;watchlistsWithChanges:number;from:string;to:string}
+export interface AIContextSelection {searchJobIds:string[];savedIds:string[];collectionIds:string[];watchlistIds:string[];changeIds:string[];includeAnalytics:boolean}
+export interface AIStatus {enabled:boolean;provider:"none"|"local"|"deepseek"|"openai";model:string|null;status:string;capabilities:{groundedAnswers:boolean;citations:boolean;streaming:boolean}}
+export interface AIResearchSession {sessionId:string;title:string;contextSelection:AIContextSelection;createdAt:string|null;updatedAt:string|null}
+export interface AIResearchCitation {citationId:string;claim:string;kind:string;label:string;href:string|null}
+export interface AIResearchMessage {messageId:string;role:"user"|"assistant";content:string;citations:AIResearchCitation[];provider:string|null;model:string|null;usage:{inputTokens:number|null;outputTokens:number|null;totalTokens:number|null}|null;insufficientContext:boolean;grounded:boolean;contextTruncated:boolean;createdAt:string|null}

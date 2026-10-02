@@ -28,7 +28,7 @@ export class ForgeConnector implements PlatformConnector {
     search: true, itemDetails: true, comments: false, repositories: true, users: false,
     issues: false, pullRequests: false, releases: false, commits: false, changeTracking: false
   };
-  #health: ConnectorHealth = { status: "healthy", message: null, lastSuccessfulRequestAt: null };
+  #health: ConnectorHealth = { status: "unavailable", message: "Connector has not completed a request yet", lastSuccessfulRequestAt: null, lastCheckedAt: null };
 
   constructor(private readonly client: ForgeClient, options: ForgeConnectorOptions) {
     this.id = options.id;

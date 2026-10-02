@@ -2,9 +2,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "../layouts/AppLayout";
 import { DashboardPage } from "../pages/DashboardPage";
-import { PlaceholderPage } from "../pages/PlaceholderPage";
+import { AuthGate } from "./AuthGate";
+import { LoginPage } from "../pages/LoginPage";
+import { SettingsPage } from "../pages/SettingsPage";
 import { SearchPage } from "../pages/SearchPage";
+import { RepositoryDetailPage } from "../pages/RepositoryDetailPage";
 import { SourcesPage } from "../pages/SourcesPage";
+import { SavedPage } from "../pages/SavedPage";
+import { SavedDetailPage } from "../pages/SavedDetailPage";
+import { CollectionsPage } from "../pages/CollectionsPage";
+import { CollectionDetailPage } from "../pages/CollectionDetailPage";
+import { WatchlistsPage } from "../pages/WatchlistsPage";
+import { WatchlistDetailPage } from "../pages/WatchlistDetailPage";
+import { ChangesPage } from "../pages/ChangesPage";
+import { AnalyticsPage } from "../pages/AnalyticsPage";
+import { AIResearchPage } from "../pages/AIResearchPage";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
@@ -13,14 +25,22 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route element={<AppLayout />}>
+          <Route path="login" element={<LoginPage />} />
+          <Route element={<AuthGate><AppLayout /></AuthGate>}>
             <Route index element={<DashboardPage />} />
             <Route path="search" element={<SearchPage />} />
+            <Route path="search/jobs/:jobId/repositories/:repositoryId" element={<RepositoryDetailPage />} />
             <Route path="sources" element={<SourcesPage />} />
-            {[
-              ["saved", "Saved items"], ["collections", "Collections"], ["watchlists", "Watchlists"],
-              ["changes", "Change history"], ["analytics", "Analytics"], ["ai", "AI research"], ["settings", "Settings"]
-            ].map(([path, title]) => <Route key={path} path={path} element={<PlaceholderPage title={title} />} />)}
+            <Route path="saved" element={<SavedPage />} />
+            <Route path="saved/:id" element={<SavedDetailPage />} />
+            <Route path="collections" element={<CollectionsPage />} />
+            <Route path="collections/:id" element={<CollectionDetailPage />} />
+            <Route path="watchlists" element={<WatchlistsPage />} />
+            <Route path="watchlists/:id" element={<WatchlistDetailPage />} />
+            <Route path="changes" element={<ChangesPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="ai" element={<AIResearchPage />} />
+            <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

@@ -1,6 +1,7 @@
 import { Schema, model } from "mongoose";
 
 const searchHistorySchema = new Schema({
+  workspaceKey: { type: String, required: true },
   query: { type: String, required: true },
   sources: { type: [String], required: true },
   types: { type: [String], required: true },
@@ -12,5 +13,5 @@ const searchHistorySchema = new Schema({
   searchedAt: { type: Date, required: true, default: Date.now }
 }, { timestamps: false, minimize: false });
 
-searchHistorySchema.index({ searchedAt: -1 });
+searchHistorySchema.index({ workspaceKey: 1, searchedAt: -1 });
 export const SearchHistoryModel = model("SearchHistory", searchHistorySchema);

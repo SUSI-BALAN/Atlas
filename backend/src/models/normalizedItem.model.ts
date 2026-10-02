@@ -1,6 +1,7 @@
 import { Schema, model } from "mongoose";
 
 const normalizedItemSchema = new Schema({
+  workspaceKey: { type: String, required: true },
   source: { type: String, required: true },
   sourceId: { type: String, required: true },
   sourceType: { type: String, required: true, index: true },
@@ -20,7 +21,7 @@ const normalizedItemSchema = new Schema({
   metadata: { type: Schema.Types.Mixed, default: {} }
 }, { timestamps: true, minimize: false });
 
-normalizedItemSchema.index({ source: 1, sourceId: 1 }, { unique: true });
+normalizedItemSchema.index({ workspaceKey: 1, source: 1, sourceId: 1 }, { unique: true });
 normalizedItemSchema.index({ sourceType: 1, sourceUpdatedAt: -1 });
 normalizedItemSchema.index({ source: 1, collectedAt: -1 });
 normalizedItemSchema.index({ tags: 1 });
