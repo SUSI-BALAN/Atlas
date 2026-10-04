@@ -18,13 +18,17 @@ function mockHosted({ commit = "226b2fa123", ready = true, spa = false } = {}) {
   };
   return { fetchImpl, calls };
 }
-function preflightRuntime({ dirty = false, missing = false } = {}) {
+function preflightRuntime({ dirty = false, finalDirty = false, missing = false, tracked = ["README.md"] } = {}) {
+  let statusCalls = 0;
   const run = (_exe, args) => {
     const key = args.join(" ");
-    if (key === "status --porcelain") return { status: 0, stdout: dirty ? " M README.md\n" : "", stderr: "" };
+    if (key === "status --porcelain") {
+      statusCalls += 1;
+      return { status: 0, stdout: statusCalls === 1 ? (dirty ? " M README.md\n" : "") : (finalDirty ? " M README.md\n" : ""), stderr: "" };
+    }
     if (key === "branch --show-current") return { status: 0, stdout: "stage7-release-readiness\n", stderr: "" };
     if (key === "rev-parse HEAD") return { status: 0, stdout: "226b2fa000\n", stderr: "" };
-    if (key === "ls-files") return { status: 0, stdout: "README.md\nfrontend/tsconfig.app.tsbuildinfo\nfrontend/tsconfig.node.tsbuildinfo\n", stderr: "" };
+    if (key === "ls-files") return { status: 0, stdout: `${tracked.join("\n")}${tracked.length ? "\n" : ""}`, stderr: "" };
     if (args[0] === "grep") return { status: 1, stdout: "", stderr: "" };
     return { status: 0, stdout: "", stderr: "" };
   };
@@ -33,6 +37,11 @@ function preflightRuntime({ dirty = false, missing = false } = {}) {
 
 test("preflight success", () => assert.equal(runPreflight(preflightRuntime()).ok, true));
 test("preflight rejects a dirty tree", () => assert.match(runPreflight(preflightRuntime({ dirty: true })).failures.join(" "), /clean working tree/));
+test("preflight rejects any tracked tsbuildinfo", () => assert.match(runPreflight(preflightRuntime({ tracked: ["README.md", "cache.tsbuildinfo"] })).failures.join(" "), /tracked tsbuildinfo: cache\.tsbuildinfo/));
+test("preflight rejects tracked app tsbuildinfo", () => assert.match(runPreflight(preflightRuntime({ tracked: ["README.md", "frontend/tsconfig.app.tsbuildinfo"] })).failures.join(" "), /tracked tsbuildinfo: frontend\/tsconfig\.app\.tsbuildinfo/));
+test("preflight rejects tracked node tsbuildinfo", () => assert.match(runPreflight(preflightRuntime({ tracked: ["README.md", "frontend/tsconfig.node.tsbuildinfo"] })).failures.join(" "), /tracked tsbuildinfo: frontend\/tsconfig\.node\.tsbuildinfo/));
+test("generated ignored tsbuildinfo does not affect tracked-artifact scan", () => assert.equal(runPreflight(preflightRuntime({ tracked: ["README.md"] })).ok, true));
+test("preflight rejects verification that dirties the final working tree", () => assert.match(runPreflight(preflightRuntime({ finalDirty: true })).failures.join(" "), /final working tree/));
 test("preflight rejects a missing release document", () => assert.match(runPreflight(preflightRuntime({ missing: true })).failures.join(" "), /release-checklist/));
 test("git secret scan passes its regex literally without a shell", () => {
   const calls = [];

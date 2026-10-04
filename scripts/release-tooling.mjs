@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
 export const REQUIRED_RELEASE_DOCS = ["docs/stage-7-release-readiness.md", "docs/release-checklist.md", "docs/backup-recovery.md", "docs/production-release-runbook.md", "docs/production-verification.md", "docs/security.md"];
-export const ALLOWED_TSB_BUILD_INFO = ["frontend/tsconfig.app.tsbuildinfo", "frontend/tsconfig.node.tsbuildinfo"];
 export const SECRET_PATTERN = "(mongodb(\\+srv)?://[^[:space:]]+:[^@[:space:]]+@|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|AKIA[0-9A-Z]{16})";
 
 export function normalizeBaseUrl(value) {
@@ -135,10 +134,10 @@ export function runPreflight({ cwd = process.cwd(), run = defaultRun, exists = p
   const tracked = command("tracked artifact inventory", "git", ["ls-files"]).split(/\r?\n/).filter(Boolean);
   const badEnv = tracked.filter(path => /(^|\/)\.env(?:\.|$)/.test(path) && !path.endsWith(".env.example"));
   const dist = tracked.filter(path => /(^|\/)dist\//.test(path));
-  const unexpectedBuildInfo = tracked.filter(path => path.endsWith(".tsbuildinfo") && !ALLOWED_TSB_BUILD_INFO.includes(path));
+  const trackedBuildInfo = tracked.filter(path => path.endsWith(".tsbuildinfo"));
   if (badEnv.length) failures.push(`tracked private env files: ${badEnv.join(", ")}`);
   if (dist.length) failures.push(`tracked dist files: ${dist.join(", ")}`);
-  if (unexpectedBuildInfo.length) failures.push(`unexpected tracked tsbuildinfo: ${unexpectedBuildInfo.join(", ")}`);
+  if (trackedBuildInfo.length) failures.push(`tracked tsbuildinfo: ${trackedBuildInfo.join(", ")}`);
   const missing = requiredDocs.filter(path => !exists(path));
   if (missing.length) failures.push(`missing release documents: ${missing.join(", ")}`);
   command("secret-pattern scan", "git", ["grep", "-I", "-n", "-E", SECRET_PATTERN], output => output.split(/\r?\n/).filter(line => line && !line.startsWith("scripts/release-tooling.mjs:")).length === 0, [0, 1]);
@@ -146,6 +145,7 @@ export function runPreflight({ cwd = process.cwd(), run = defaultRun, exists = p
   command("tests", "npm.cmd", ["test"]);
   command("production build", "npm.cmd", ["run", "build"]);
   command("production dependency audit", "npm.cmd", ["audit", "--omit=dev", "--audit-level=high"]);
+  command("final working tree", "git", ["status", "--porcelain"], output => output.trim() === "");
   return { ok: failures.length === 0, failures, notes, branch, head, dirty: Boolean(status.trim()) };
 }
 export function runSubprocess(executable, args, cwd, runtime = {}) {
