@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 
 export const REQUIRED_RELEASE_DOCS = ["docs/stage-7-release-readiness.md", "docs/release-checklist.md", "docs/backup-recovery.md", "docs/production-release-runbook.md", "docs/production-verification.md", "docs/security.md"];
 export const ALLOWED_TSB_BUILD_INFO = ["frontend/tsconfig.app.tsbuildinfo", "frontend/tsconfig.node.tsbuildinfo"];
+export const SECRET_PATTERN = "(mongodb(\\+srv)?://[^[:space:]]+:[^@[:space:]]+@|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|AKIA[0-9A-Z]{16})";
 
 export function normalizeBaseUrl(value) {
   if (!value) throw new Error("--base-url is required");
@@ -140,11 +141,20 @@ export function runPreflight({ cwd = process.cwd(), run = defaultRun, exists = p
   if (unexpectedBuildInfo.length) failures.push(`unexpected tracked tsbuildinfo: ${unexpectedBuildInfo.join(", ")}`);
   const missing = requiredDocs.filter(path => !exists(path));
   if (missing.length) failures.push(`missing release documents: ${missing.join(", ")}`);
-  command("secret-pattern scan", "git", ["grep", "-I", "-n", "-E", "(mongodb(\\+srv)?://[^[:space:]]+:[^@[:space:]]+@|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|AKIA[0-9A-Z]{16})"], output => output.split(/\r?\n/).filter(line => line && !line.startsWith("scripts/release-tooling.mjs:")).length === 0, [0, 1]);
+  command("secret-pattern scan", "git", ["grep", "-I", "-n", "-E", SECRET_PATTERN], output => output.split(/\r?\n/).filter(line => line && !line.startsWith("scripts/release-tooling.mjs:")).length === 0, [0, 1]);
   command("typecheck", "npm.cmd", ["run", "typecheck"]);
   command("tests", "npm.cmd", ["test"]);
   command("production build", "npm.cmd", ["run", "build"]);
   command("production dependency audit", "npm.cmd", ["audit", "--omit=dev", "--audit-level=high"]);
   return { ok: failures.length === 0, failures, notes, branch, head, dirty: Boolean(status.trim()) };
 }
-function defaultRun(executable, args, cwd) { return spawnSync(executable, args, { cwd, encoding: "utf8", shell: process.platform === "win32" }); }
+export function runSubprocess(executable, args, cwd, runtime = {}) {
+  const platform = runtime.platform ?? process.platform;
+  const spawn = runtime.spawn ?? spawnSync;
+  const env = runtime.env ?? process.env;
+  if (platform === "win32" && executable.toLowerCase().endsWith(".cmd")) {
+    return spawn(env.ComSpec || env.COMSPEC || "cmd.exe", ["/d", "/s", "/c", executable, ...args], { cwd, encoding: "utf8", shell: false });
+  }
+  return spawn(executable, args, { cwd, encoding: "utf8", shell: false });
+}
+function defaultRun(executable, args, cwd) { return runSubprocess(executable, args, cwd); }

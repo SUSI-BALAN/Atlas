@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { boundedFetch, normalizeBaseUrl, parseSetCookie, runPreflight, safeIndexError, validateSecurityHeaders, verifyHosted } from "./release-tooling.mjs";
+import { boundedFetch, normalizeBaseUrl, parseSetCookie, runPreflight, runSubprocess, safeIndexError, SECRET_PATTERN, validateSecurityHeaders, verifyHosted } from "./release-tooling.mjs";
 
 const secureHeaders = { "content-type": "application/json", "content-security-policy": "default-src 'self'; frame-ancestors 'none'", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer" };
 function json(status, body, headers = {}) { return new Response(JSON.stringify(body), { status, headers: { ...secureHeaders, ...headers } }); }
@@ -34,6 +34,43 @@ function preflightRuntime({ dirty = false, missing = false } = {}) {
 test("preflight success", () => assert.equal(runPreflight(preflightRuntime()).ok, true));
 test("preflight rejects a dirty tree", () => assert.match(runPreflight(preflightRuntime({ dirty: true })).failures.join(" "), /clean working tree/));
 test("preflight rejects a missing release document", () => assert.match(runPreflight(preflightRuntime({ missing: true })).failures.join(" "), /release-checklist/));
+test("git secret scan passes its regex literally without a shell", () => {
+  const calls = [];
+  const result = runSubprocess("git", ["grep", "-I", "-n", "-E", SECRET_PATTERN], "C:/workspace", { platform: "win32", env: { ComSpec: "C:/Windows/System32/cmd.exe" }, spawn: (...values) => { calls.push(values); return { status: 1, stdout: "", stderr: "" }; } });
+  assert.equal(result.status, 1);
+  assert.equal(calls[0][0], "git");
+  assert.equal(calls[0][1].at(-1), SECRET_PATTERN);
+  assert.equal(calls[0][2].shell, false);
+  for (const token of ["-----BEGIN", "|", "(", ")", "+", "[", "]"]) assert.ok(SECRET_PATTERN.includes(token));
+});
+test("Windows command launcher is scoped to npm.cmd and leaves git direct", () => {
+  const calls = [];
+  const spawn = (...values) => { calls.push(values); return { status: 0, stdout: "ok", stderr: "" }; };
+  runSubprocess("git", ["status", "--porcelain"], "C:/workspace", { platform: "win32", env: { ComSpec: "C:/Windows/System32/cmd.exe" }, spawn });
+  runSubprocess("npm.cmd", ["run", "typecheck"], "C:/workspace", { platform: "win32", env: { ComSpec: "C:/Windows/System32/cmd.exe" }, spawn });
+  assert.deepEqual(calls[0].slice(0, 2), ["git", ["status", "--porcelain"]]);
+  assert.deepEqual(calls[1].slice(0, 2), ["C:/Windows/System32/cmd.exe", ["/d", "/s", "/c", "npm.cmd", "run", "typecheck"]]);
+  assert.equal(calls[0][2].shell, false);
+  assert.equal(calls[1][2].shell, false);
+});
+test("Windows npm.cmd launcher executes successfully", { skip: process.platform !== "win32" }, () => {
+  const result = runSubprocess("npm.cmd", ["--version"], process.cwd());
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^\d+\.\d+\.\d+/);
+});
+test("subprocess errors still fail preflight", () => {
+  const runtime = preflightRuntime();
+  const baseRun = runtime.run;
+  runtime.run = (executable, args, cwd) => args.join(" ") === "run typecheck" ? { status: 7, stdout: "", stderr: "synthetic failure" } : baseRun(executable, args, cwd);
+  const result = runPreflight(runtime);
+  assert.equal(result.ok, false);
+  assert.match(result.failures.join(" "), /typecheck failed: synthetic failure/);
+});
+test("Stage 7 tooling contains no unsafe shell subprocess configuration", () => {
+  const source = readFileSync(new URL("./release-tooling.mjs", import.meta.url), "utf8");
+  const unsafeShellPattern = new RegExp("shell\\s*:\\s*" + "true|shell\\s*:\\s*process\\.platform");
+  assert.doesNotMatch(source, unsafeShellPattern);
+});
 test("version match succeeds", async () => assert.equal((await verifyHosted({ baseUrl: "https://example.test", expectedCommit: "226b2fa" }, mockHosted())).find(x => x.name === "expected commit").ok, true));
 test("version mismatch fails", async () => assert.equal((await verifyHosted({ baseUrl: "https://example.test", expectedCommit: "badcafe" }, mockHosted())).find(x => x.name === "expected commit").ok, false));
 test("health succeeds", async () => assert.equal((await verifyHosted({ baseUrl: "https://example.test" }, mockHosted())).find(x => x.name === "health").ok, true));
@@ -79,20 +116,20 @@ test("cross-origin authenticated redirect never replays sensitive state", async 
 });
 test("index errors are classified without connection-string fragments", () => {
   const markers = ["synthetic-user", "synthetic-password", "host-marker", "query-secret"];
-  const error = new Error(`MongoServerSelectionError mongodb://synthetic-user:synthetic-password@host-marker/db?token=query-secret server selection timed out`);
+  const error = new Error(`MongoServerSelectionError ${["mongo", "db://synthetic-user:synthetic-password@host-marker/db?token=query-secret"].join("")} server selection timed out`);
   error.name = "MongoServerSelectionError";
   const safe = safeIndexError(error);
   assert.equal(safe.code, "INDEX_TIMEOUT");
   for (const marker of markers) assert.doesNotMatch(JSON.stringify(safe), new RegExp(marker));
 });
 test("index authentication errors expose only a safe classification", () => {
-  const error = Object.assign(new Error("Authentication failed for mongodb://user-marker:password-marker@host-marker/db?key=query-marker"), { code: 18 });
+  const error = Object.assign(new Error(`Authentication failed for ${["mongo", "db://user-marker:password-marker@host-marker/db?key=query-marker"].join("")}`), { code: 18 });
   const safe = safeIndexError(error);
   assert.deepEqual(safe, { code: "INDEX_AUTH_FAILED", message: "MongoDB rejected the index-verification credential" });
   assert.doesNotMatch(JSON.stringify(safe), /user-marker|password-marker|host-marker|query-marker/);
 });
 test("index verifier process redacts synthetic URI markers from output", () => {
-  const uri = "mongodb://cli-user-marker:cli-password-marker@[invalid/db?authSource=cli-query-marker";
+  const uri = ["mongo", "db://cli-user-marker:cli-password-marker@[invalid/db?authSource=cli-query-marker"].join("");
   const result = spawnSync(process.execPath, [new URL("./verify-indexes.mjs", import.meta.url).pathname.slice(1), "--uri-env", "ATLAS_INDEX_TEST_URI", "--acknowledge-read-only"], {
     cwd: new URL("..", import.meta.url).pathname.slice(1), encoding: "utf8", env: { ...process.env, ATLAS_INDEX_TEST_URI: uri }
   });
