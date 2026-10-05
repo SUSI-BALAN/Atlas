@@ -17,9 +17,13 @@ const envSchema = z.object({
   FRONTEND_URL: optionalUrl,
   FRONTEND_ORIGINS: z.string().optional(),
   MONGODB_URI: z.string().min(1).default("mongodb://127.0.0.1:27017/multi_forge"),
+  AUTH_SESSION_TTL_SECONDS: z.coerce.number().int().min(3600).max(30 * 86400).default(7 * 86400),
+  AUTH_COOKIE_NAME: z.string().regex(/^[a-z][a-z0-9_]{2,40}$/).default("atlas_session"),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(10000),
   CONNECTOR_CONCURRENCY: z.coerce.number().int().min(1).max(10).optional(),
   SEARCH_CONCURRENCY: z.coerce.number().int().min(1).max(10).optional(),
+  WATCH_CHECK_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
+  WATCH_MAX_WATCHLISTS_PER_RUN: z.coerce.number().int().min(1).max(100).default(10),
   SEARCH_CACHE_TTL_SECONDS: z.coerce.number().int().min(0).max(86400).default(300),
   MAX_EXPANDED_QUERIES: z.coerce.number().int().min(1).max(20).default(5),
   GITHUB_ENABLED: booleanValue.default(true),
@@ -46,11 +50,19 @@ const envSchema = z.object({
   FORGEJO_TOKEN: optionalSecret,
   AI_PROVIDER: z.enum(["none", "local", "deepseek", "openai"]).default("none"),
   LOCAL_AI_BASE_URL: z.string().url().default("http://127.0.0.1:11434"),
-  LOCAL_AI_MODEL: z.string().optional(),
+  LOCAL_AI_MODEL: z.string().trim().max(128).optional(),
+  OPENAI_MODEL: z.string().trim().max(128).optional(),
+  DEEPSEEK_MODEL: z.string().trim().max(128).optional(),
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(5000).max(120000).default(60000),
+  AI_CONTEXT_MAX_CHARACTERS: z.coerce.number().int().min(4000).max(100000).default(24000),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(128).max(4096).default(1200),
+  AI_OUTPUT_MAX_CHARACTERS: z.coerce.number().int().min(500).max(20000).default(8000),
   OPENAI_API_KEY: optionalSecret,
   DEEPSEEK_API_KEY: optionalSecret,
   AI_API_KEY: optionalSecret,
-  REDIS_URL: optionalSecret
+  REDIS_URL: optionalSecret,
+  BUILD_ID: z.string().trim().max(128).optional(),
+  RENDER_GIT_COMMIT: z.string().trim().regex(/^[a-f\d]{7,64}$/i).optional()
 });
 
 const apiUrl = (base: string, path: string): string => new URL(path, `${base.replace(/\/$/, "")}/`).toString();
@@ -66,10 +78,13 @@ export function parseEnvironment(input: NodeJS.ProcessEnv) {
   ];
   const frontendOrigins = [...new Set([...configuredOrigins, ...localOrigins])].map((origin) => {
     const url = new URL(origin);
-    if (!/^https?:$/.test(url.protocol) || url.origin === "null") throw new Error("FRONTEND_ORIGINS must contain explicit HTTP(S) origins");
+    if (!/^https?:$/.test(url.protocol) || url.origin === "null" || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("FRONTEND_ORIGINS must contain clean HTTP(S) origins");
     return url.origin;
   });
   if (frontendOrigins.length === 0) throw new Error("At least one frontend origin is required");
+  if (value.NODE_ENV === "production" && frontendOrigins.some(origin => !origin.startsWith("https://"))) throw new Error("Production frontend origins must use HTTPS");
+  if (value.NODE_ENV === "production" && !input.MONGODB_URI) throw new Error("Production MONGODB_URI must be configured explicitly");
+  if (value.NODE_ENV === "production" && value.AI_PROVIDER !== "none" && value.AI_REQUEST_TIMEOUT_MS > 24_000) throw new Error("Production AI timeout must fit within the same-origin proxy limit");
   return {
     ...value,
     BACKEND_HOST: value.BACKEND_HOST ?? (value.NODE_ENV === "production" ? "0.0.0.0" : "127.0.0.1"),

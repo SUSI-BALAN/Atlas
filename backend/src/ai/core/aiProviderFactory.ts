@@ -1,0 +1,3 @@
+import { env } from "../../config/env.js";import type { AIProvider } from "./aiProvider.js";import { DeepSeekProvider } from "../providers/deepseek.provider.js";import { LocalAIProvider } from "../providers/local.provider.js";import { NoneAIProvider } from "../providers/none.provider.js";import { OpenAIProvider } from "../providers/openai.provider.js";
+export function createAIProvider():AIProvider{switch(env.AI_PROVIDER){case"local":return new LocalAIProvider(env.LOCAL_AI_BASE_URL,env.LOCAL_AI_MODEL??null);case"openai":return new OpenAIProvider(env.OPENAI_API_KEY??null,env.OPENAI_MODEL??null);case"deepseek":return new DeepSeekProvider(env.DEEPSEEK_API_KEY??null,env.DEEPSEEK_MODEL??null);default:return new NoneAIProvider()}}
+export const aiProvider=createAIProvider();

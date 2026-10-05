@@ -19,7 +19,7 @@ export class GitLabConnector implements PlatformConnector {
     search: true, itemDetails: true, comments: false, repositories: true, users: false,
     issues: false, pullRequests: false, releases: false, commits: false, changeTracking: false
   };
-  #health: ConnectorHealth = { status: "healthy", message: null, lastSuccessfulRequestAt: null };
+  #health: ConnectorHealth = { status: "unavailable", message: "Connector has not completed a request yet", lastSuccessfulRequestAt: null, lastCheckedAt: null };
   constructor(private readonly client: GitLabClient, options: { enabled?: boolean; tokenConfigured?: boolean; homepageUrl?: string } = {}) {
     this.homepageUrl = options.homepageUrl ?? "https://gitlab.com/";
     this.enabled = options.enabled ?? true;

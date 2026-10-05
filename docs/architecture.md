@@ -1,5 +1,9 @@
 # Architecture
 
+Stage 6 adds a server-controlled boundary before every application router: browser `/api/*` requests reach the fixed same-origin Netlify rewrite, then Express resolves a hashed MongoDB session, verifies active user/workspace membership, checks CSRF for mutations, and enters an async-local workspace context for existing services. Public operational/auth routes are explicitly mounted before this gate. Only the backend can derive workspace identity; browser-supplied workspace keys are ignored. The watch worker enters each due watchlist's own workspace context. The fixed proxy and static CSP are local configuration changes, not a deployed infrastructure change.
+
+The source-neutral watch service loads saved identities, calls connector `fetchItem`, creates an allowlisted snapshot, invokes the pure detector, and persists state/events/runs. HTTP routes and the run-once worker share it; Express has no polling timer.
+
 ## System boundary
 
 The application aggregates public or explicitly authorized information through official or otherwise permitted interfaces. Provider access is an adapter concern; core search and research workflows operate on normalized records.
@@ -12,6 +16,8 @@ Browser -> Search job API -> bounded connector scheduler
                            page batch -> normalize -> identity/URL detection
                                       -> MongoDB bulk upsert -> paged UI/export
 ```
+
+The browser selects jobs through `/search?job=<jobId>` and optionally preserves the current result cursor in the query string. Repository detail routes carry only validated job/result identifiers; provider tokens, API origins, and request state never enter navigation URLs.
 
 ## Layer rules
 
@@ -31,16 +37,31 @@ Browser -> Search job API -> bounded connector scheduler
 6. Bulk upsert the batch, update durable source progress, and make it immediately available to cursor-paged UI and streaming exports.
 7. Continue until exhausted, explicitly limited by a provider, cancelled, or failed. Independent sources continue after a partial failure.
 
+## Restart reconciliation
+
+The connector scheduler remains process-local. Once MongoDB connects at API startup, Atlas finds jobs in `queued`, `running`, or `rate_limited` and applies a conservative transition:
+
+1. Never issue provider requests automatically.
+2. Preserve all `repository_results`, totals, and source cursors.
+3. Mark each nonterminal source `failed` with retryable `PROCESS_INTERRUPTED`.
+4. Mark the job `partially_complete` if any source already completed; otherwise mark it `failed`.
+5. Let the user explicitly retry a source. Linear cursors resume after the last durable page; identity upserts protect providers that must revisit work.
+
 ## Runtime decisions
 
-- Search documents and results are durable, while active scheduling remains owned by the local API process. A process restart does not yet automatically re-enqueue interrupted jobs.
+- Search documents and results are durable, while active scheduling remains owned by the local API process. Startup reconciliation exposes interrupted work safely instead of automatically replaying it.
 - MongoDB failure produces explicit degraded health. Bounded preview/deep jobs use a bounded in-process fallback; all-results jobs require MongoDB.
 - Request IDs flow through logs, raw records, normalized provenance, and job/source status.
 - Connector IDs and standardized source types are stable serialized identifiers.
 
 ## Evolution points
 
+Stage 4 introduced a dedicated analytics service between Express routes and Mongoose models. Routes validate bounded dates, limits, and provider enums; the service owns aggregation pipelines and returns source-neutral DTOs. Stage 6 scopes all pipelines, including search/result analytics, to the authenticated workspace. The frontend requests sections independently so an optional report failure does not make the page unusable.
+
+Stage 2 places saved repositories, collections, and membership behind a workspace service boundary. Saves copy only allowlisted normalized fields from job-scoped persisted results. Collections use join records rather than embedding repository documents. Stage 6 resolves ownership from authenticated server sessions and memberships; persisted records require an explicit workspace key. Historical pre-Stage-6 records used the `default` workspace or require additive ownership migration into it.
+
 - Search repository can be replaced by Meilisearch/OpenSearch/Elasticsearch indexing.
 - Scheduler ownership can move to BullMQ/Redis for multi-process execution and automatic restart recovery without changing REST contracts.
 - AI providers implement a separate optional interface and consume cited normalized items.
+- Stage 5 implements that interface with `none`, local, OpenAI, and DeepSeek adapters. A separate context builder resolves only selected Atlas references into bounded, allowlisted evidence. The research service owns fixed server instructions, history/output limits, timeout, idempotency, citation validation, safe persistence, and error classification. Provider-specific objects do not escape adapters, and providers receive no browsing, arbitrary URL, tool, or execution capability.
 - Authentication middleware can add users/teams without changing connector contracts.
