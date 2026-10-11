@@ -35,12 +35,37 @@ describe("GitLabConnector", () => {
   it("continues through GitLab X-Next-Page pagination", async () => {
     const fetchImpl = vi.fn(async (input: URL | RequestInfo) => {
       const page = Number(new URL(String(input)).searchParams.get("page"));
-      return new Response(JSON.stringify([{ ...project, id: page, name: `collector-${page}`, name_with_namespace: `Open / Collector ${page}`, path_with_namespace: `open/collector-${page}`, web_url: `https://gitlab.test/open/collector-${page}` }]), { status: 200, headers: { "x-total": "2", "x-next-page": page === 1 ? "2" : "" } });
+      return new Response(JSON.stringify([{ ...project, id: page, name: `collector-${page}`, name_with_namespace: `Open / Collector ${page}`, path_with_namespace: `open/collector-${page}`, web_url: `https://gitlab.test/open/collector-${page}` }]), { status: 200, headers: { "content-type": "application/json", "x-total": "2", "x-next-page": page === 1 ? "2" : "" } });
     }) as typeof fetch;
     const connector = new GitLabConnector(new GitLabClient({ baseUrl: "https://gitlab.test/api/v4/", timeoutMs: 5000, fetchImpl }));
     const batches = [];
     for await (const batch of connector.searchRepositories({ query: "collector", sources: ["gitlab"], filters: {}, sort: { field: "relevance", direction: "desc" }, collectionMode: "all", resultLimit: null }, { requestId: "request", jobId: "job", signal: new AbortController().signal })) batches.push(batch);
     expect(batches).toHaveLength(2);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts a valid empty project search response", async () => {
+    const fetchImpl = vi.fn(async () => new Response("[]", { status: 200, headers: { "content-type": "application/json", "x-total": "0" } })) as typeof fetch;
+    const connector = new GitLabConnector(new GitLabClient({ baseUrl: "https://gitlab.test/api/v4/", timeoutMs: 5000, fetchImpl }));
+    const result = await connector.search({ query: "none", types: ["repository"], filters: {}, sort: "relevance", page: 1, perPage: 20 }, { requestId: "request", jobId: "job" });
+    expect(result).toMatchObject({ items: [], rawItems: [], total: 0, hasMore: false });
+  });
+
+  it("accepts documented nullable and omitted optional project fields", async () => {
+    const value = { ...project, description: null, avatar_url: null, default_branch: null };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(value), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
+    const connector = new GitLabConnector(new GitLabClient({ baseUrl: "https://gitlab.test/api/v4/", timeoutMs: 5000, fetchImpl }));
+    const result = await connector.fetchItem({ sourceType: "repository", locator: "8" }, { requestId: "request", jobId: "job" });
+    expect(result.item).toMatchObject({ sourceId: "8", description: null, metadata: { defaultBranch: null } });
+  });
+
+  it("reports only failing record indexes and field names for malformed projects", async () => {
+    const malformed = { ...project, forks_count: null, namespace: { id: 3, full_path: "open" }, private_token: "must-not-appear" };
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([malformed]), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
+    const connector = new GitLabConnector(new GitLabClient({ baseUrl: "https://gitlab.test/api/v4/", timeoutMs: 5000, fetchImpl }));
+    const operation = connector.search({ query: "collector", types: ["repository"], filters: {}, sort: "relevance", page: 1, perPage: 20 }, { requestId: "request", jobId: "job" });
+    await expect(operation).rejects.toMatchObject({ code: "malformed_response", retryable: false });
+    await expect(operation).rejects.not.toThrow("must-not-appear");
+    await expect(operation).rejects.toThrow(/0\.forks_count.*0\.namespace\.name/);
   });
 });
