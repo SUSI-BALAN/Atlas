@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "../layouts/AppLayout";
 import { DashboardPage } from "../pages/DashboardPage";
 import { AuthGate } from "./AuthGate";
-import { LoginPage } from "../pages/LoginPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SearchPage } from "../pages/SearchPage";
 import { RepositoryDetailPage } from "../pages/RepositoryDetailPage";
@@ -25,7 +24,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="login" element={<LoginPage />} />
+          <Route path="login" element={<Navigate to="/" replace />} />
           <Route element={<AuthGate><AppLayout /></AuthGate>}>
             <Route index element={<DashboardPage />} />
             <Route path="search" element={<SearchPage />} />

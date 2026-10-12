@@ -43,7 +43,7 @@ describe("Stage 6 route protection", () => {
   it("returns a safe identity and session-bound CSRF token without exposing secrets", async () => {
     const app = createApp();
     const me = await request(app).get("/api/auth/me").set("Cookie", testCookie);
-    expect(me.body.data).toEqual({ email: testIdentity.email, workspace: { key: "default", name: "Test workspace", role: "owner" }, expiresAt: testIdentity.expiresAt });
+    expect(me.body.data).toEqual({ kind: "authenticated", email: testIdentity.email, workspace: { key: "default", name: "Test workspace", role: "owner" }, expiresAt: testIdentity.expiresAt });
     expect(JSON.stringify(me.body)).not.toContain("csrfTokenHash");
     const response = await request(app).get("/api/auth/csrf").set("Cookie", testCookie);
     expect(response.body.data.token).toMatch(/^[A-Za-z\d_-]{43}$/);
@@ -79,6 +79,28 @@ describe("Stage 6 route protection", () => {
     expect(response.status).toBe(200);
     expect(response.headers["set-cookie"][0]).toContain("HttpOnly");
     expect(JSON.stringify(response.body)).not.toContain(token);
+  });
+
+  it("creates a guest session without email, password or a client workspace key", async () => {
+    const token = "G".repeat(43);
+    const guest = { ...testIdentity, kind: "guest" as const, userId: null, email: null, role: "guest" as const, workspaceKey: "guest_server_generated", workspaceName: "Private guest workspace" };
+    const createGuest = vi.spyOn(authService, "createGuest").mockResolvedValue({ token, identity: guest });
+    const response = await request(createApp()).post("/api/auth/guest").send({ workspaceKey: "attacker-controlled", email: "ignored@example.test" });
+    expect(response.status).toBe(201);
+    expect(createGuest).toHaveBeenCalledOnce();
+    expect(response.body.data).toEqual({ kind: "guest", email: null, workspace: { name: "Private guest workspace", role: "guest" }, expiresAt: guest.expiresAt });
+    expect(JSON.stringify(response.body)).not.toContain(token);
+    expect(JSON.stringify(response.body)).not.toContain("guest_server_generated");
+    expect(response.headers["set-cookie"][0]).toContain("HttpOnly; Path=/; SameSite=Strict");
+  });
+
+  it("fails safely when guest persistence is unavailable", async () => {
+    vi.spyOn(authService, "resolve").mockResolvedValue(null);
+    vi.spyOn(authService, "createGuest").mockRejectedValue(new Error("database unavailable secret detail"));
+    const response = await request(createApp({ nodeEnv: "production" })).post("/api/auth/guest").send({});
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(response.body)).not.toContain("database unavailable secret detail");
+    expect(response.headers["set-cookie"]).toBeUndefined();
   });
 
   it("rejects a cross-origin login before credential lookup", async () => {

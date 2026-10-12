@@ -11,6 +11,20 @@ export function createAuthRouter() {
 const loginLimit = rateLimit({ windowMs: 15 * 60_000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false,
   handler: (_req, res) => res.status(429).json({ success: false, error: { code: "LOGIN_RATE_LIMITED", message: "Too many login attempts; try again later" }, meta: { requestId: res.locals.requestId } }) });
 const authRouter = Router();
+const guestLimit = rateLimit({ windowMs: 60 * 60_000, limit: 10, standardHeaders: "draft-8", legacyHeaders: false,
+  handler: (_req, res) => res.status(429).json({ success: false, error: { code: "GUEST_SESSION_RATE_LIMITED", message: "Too many private sessions were requested; try again later" }, meta: { requestId: res.locals.requestId } }) });
+authRouter.post("/guest", guestLimit, async (req, res, next) => {
+  try {
+    const origin = req.get("origin");
+    if (origin && !env.FRONTEND_ORIGINS.includes(origin)) throw new AppError(403, "INVALID_ORIGIN", "Request origin is not allowed");
+    const existingToken = readSessionCookie(req.headers.cookie);
+    const existing = existingToken ? await authService.resolve(existingToken) : null;
+    if (existing) return res.json({ success: true, data: safeIdentity(existing), meta: { requestId: res.locals.requestId } });
+    const result = await authService.createGuest();
+    res.setHeader("Set-Cookie", sessionCookie(result.token, env.NODE_ENV === "production", env.GUEST_SESSION_TTL_SECONDS));
+    res.status(201).json({ success: true, data: safeIdentity(result.identity), meta: { requestId: res.locals.requestId } });
+  } catch (error) { next(error); }
+});
 authRouter.post("/login", loginLimit, async (req, res, next) => {
   try {
     const origin = req.get("origin");
@@ -47,6 +61,6 @@ return authRouter;
 
 export const authRouter = createAuthRouter();
 
-function safeIdentity(identity: { userId: string; email: string; workspaceKey: string; workspaceName: string; role: string; expiresAt: string }) {
-  return { email: identity.email, workspace: { key: identity.workspaceKey, name: identity.workspaceName, role: identity.role }, expiresAt: identity.expiresAt };
+function safeIdentity(identity: { kind: "authenticated" | "guest"; email: string | null; workspaceKey: string; workspaceName: string; role: string; expiresAt: string }) {
+  return { kind: identity.kind, email: identity.email, workspace: { ...(identity.kind === "authenticated" ? { key: identity.workspaceKey } : {}), name: identity.workspaceName, role: identity.role }, expiresAt: identity.expiresAt };
 }

@@ -18,7 +18,8 @@ export function buildApiUrl(path: string, baseUrl = configuredApiBaseUrl): strin
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
-  if (!["GET", "HEAD", "OPTIONS"].includes(method) && !path.startsWith("/api/auth/login") && !csrfToken) {
+  const csrfExempt = path === "/api/auth/login" || path === "/api/auth/guest";
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && !csrfExempt && !csrfToken) {
     const response = await fetch(buildApiUrl("/api/auth/csrf"), { credentials: "include" });
     const payload = await response.json() as Envelope<{ token: string }>;
     if (!response.ok || !payload.success) {
@@ -30,7 +31,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     ...init,
     credentials: "include",
-    headers: { "content-type": "application/json", ...(!["GET", "HEAD", "OPTIONS"].includes(method) && csrfToken && !path.startsWith("/api/auth/login") ? { "x-csrf-token": csrfToken } : {}), ...init?.headers }
+    headers: { "content-type": "application/json", ...(!["GET", "HEAD", "OPTIONS"].includes(method) && csrfToken && !csrfExempt ? { "x-csrf-token": csrfToken } : {}), ...init?.headers }
   });
   const body = await response.text();
   let payload: Envelope<T> | null = null;
@@ -54,8 +55,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return payload.data;
 }
 
-export interface AuthUser { email: string; workspace: { key: string; name: string; role: "owner" | "member" }; expiresAt: string }
+export interface AuthUser { kind: "authenticated" | "guest"; email: string | null; workspace: { key?: string; name: string; role: "owner" | "member" | "guest" }; expiresAt: string }
 export function authMe(): Promise<AuthUser> { return api("/api/auth/me"); }
+export function bootstrapGuestSession(): Promise<AuthUser> { csrfToken = null; return api("/api/auth/guest", { method: "POST", body: "{}" }); }
 export async function authLogin(email: string, password: string): Promise<AuthUser> {
   csrfToken = null;
   return api("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });

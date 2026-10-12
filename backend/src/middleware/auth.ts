@@ -35,8 +35,8 @@ export const requireCsrf: RequestHandler = (req, res, next) => {
   next();
 };
 
-export function sessionCookie(token: string, secure = env.NODE_ENV === "production"): string {
-  return `${env.AUTH_COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${env.AUTH_SESSION_TTL_SECONDS}${secure ? "; Secure" : ""}`;
+export function sessionCookie(token: string, secure = env.NODE_ENV === "production", maxAge = env.AUTH_SESSION_TTL_SECONDS): string {
+  return `${env.AUTH_COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${maxAge}${secure ? "; Secure" : ""}`;
 }
 export function clearSessionCookie(res: { setHeader(name: string, value: string): unknown }): void {
   res.setHeader("Set-Cookie", `${env.AUTH_COOKIE_NAME}=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0${env.NODE_ENV === "production" ? "; Secure" : ""}`);

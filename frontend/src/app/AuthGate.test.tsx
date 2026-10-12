@@ -1,42 +1,32 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const api = vi.hoisted(() => ({ authMe: vi.fn() }));
+const api = vi.hoisted(() => ({ bootstrapGuestSession: vi.fn() }));
 vi.mock("../services/api", () => api);
 import { AuthGate } from "./AuthGate";
 
-const destination = () => <span>Protected content</span>;
-function LoginLocation() { const location = useLocation(); return <span>Login destination: {String(location.state?.from)}</span>; }
-function renderGate(path = "/analytics") {
+function renderGate() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><Routes>
-    <Route path="/login" element={<LoginLocation />} />
-    <Route path="*" element={<AuthGate>{destination()}</AuthGate>} />
-  </Routes></MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><MemoryRouter><AuthGate><span>Public Atlas content</span></AuthGate></MemoryRouter></QueryClientProvider>);
 }
 beforeEach(() => vi.clearAllMocks()); afterEach(cleanup);
-describe("authenticated route gate", () => {
-  it("does not flash protected content while authentication is loading", () => {
-    api.authMe.mockReturnValue(new Promise(() => {}));
+describe("automatic private-session gate", () => {
+  it("does not flash application content while a guest session is being created", () => {
+    api.bootstrapGuestSession.mockReturnValue(new Promise(() => {}));
     renderGate();
-    expect(screen.getByRole("status")).toHaveTextContent("Checking your session");
-    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Preparing your private workspace");
+    expect(screen.queryByText("Public Atlas content")).not.toBeInTheDocument();
   });
-  it("redirects unauthenticated visitors and remembers the intended route", async () => {
-    api.authMe.mockRejectedValue(new Error("Authentication required"));
-    renderGate("/watchlists?status=enabled");
-    expect(await screen.findByText("Login destination: /watchlists?status=enabled")).toBeInTheDocument();
-  });
-  it("renders protected content only after a successful me response", async () => {
-    api.authMe.mockResolvedValue({ email: "owner@example.test", workspace: { key: "default", name: "Atlas", role: "owner" } });
+  it("shows the public application without login after automatic guest creation", async () => {
+    api.bootstrapGuestSession.mockResolvedValue({ kind: "guest", email: null, workspace: { name: "Private guest workspace", role: "guest" }, expiresAt: "2030-01-01T00:00:00Z" });
     renderGate();
-    expect(await screen.findByText("Protected content")).toBeInTheDocument();
+    expect(await screen.findByText("Public Atlas content")).toBeInTheDocument();
   });
-  it("shows a retryable availability error without exposing data", async () => {
-    api.authMe.mockRejectedValue(new Error("API unavailable (503)"));
+  it("fails closed without displaying workspace data when persistence is unavailable", async () => {
+    api.bootstrapGuestSession.mockRejectedValue(new Error("API unavailable (503)"));
     renderGate();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to check your session");
-    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("No shared fallback workspace was used");
+    expect(screen.queryByText("Public Atlas content")).not.toBeInTheDocument();
   });
 });
