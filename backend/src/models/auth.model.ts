@@ -25,7 +25,8 @@ membershipSchema.index({ userId: 1 });
 membershipSchema.index({ workspaceKey: 1, role: 1 }, { unique: true, partialFilterExpression: { role: "owner" } });
 
 const sessionSchema = new Schema({
-  userId: { type: Schema.Types.ObjectId, required: true, ref: "User" },
+  kind: { type: String, enum: ["authenticated", "guest"], required: true, default: "authenticated" },
+  userId: { type: Schema.Types.ObjectId, required: false, ref: "User", default: null },
   sessionTokenHash: { type: String, required: true, select: false },
   csrfTokenHash: { type: String, required: true, select: false },
   workspaceKey: { type: String, required: true },
@@ -37,7 +38,18 @@ sessionSchema.index({ sessionTokenHash: 1 }, { unique: true });
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 sessionSchema.index({ userId: 1 });
 
+const guestWorkspaceSchema = new Schema({
+  workspaceKey: { type: String, required: true },
+  sessionExpiresAt: { type: Date, required: true },
+  cleanupEligibleAt: { type: Date, required: true },
+  cleanupStatus: { type: String, enum: ["retained", "approved", "cleaned"], default: "retained", required: true },
+  cleanedAt: { type: Date, default: null }
+}, { timestamps: true, collection: "guest_workspaces" });
+guestWorkspaceSchema.index({ workspaceKey: 1 }, { unique: true });
+guestWorkspaceSchema.index({ cleanupStatus: 1, cleanupEligibleAt: 1 });
+
 export const UserModel = model("User", userSchema);
 export const WorkspaceModel = model("Workspace", workspaceSchema);
 export const WorkspaceMembershipModel = model("WorkspaceMembership", membershipSchema);
 export const AuthSessionModel = model("AuthSession", sessionSchema);
+export const GuestWorkspaceModel = model("GuestWorkspace", guestWorkspaceSchema);

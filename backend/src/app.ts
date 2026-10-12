@@ -20,6 +20,10 @@ import { analyticsRouter } from "./routes/analytics.routes.js";
 import { aiRouter } from "./routes/ai.routes.js";
 import { createAuthRouter } from "./routes/auth.routes.js";
 import { requireAuth, requireCsrf } from "./middleware/auth.js";
+import { consumeQuota } from "./services/quota.service.js";
+import { SearchJobModel } from "./models/searchJob.model.js";
+import { currentWorkspace } from "./services/workspaceContext.js";
+import { AppError } from "./middleware/errorHandler.js";
 
 export function createApp(options: { nodeEnv?: "development" | "test" | "production" } = {}) {
   const app = express();
@@ -60,17 +64,29 @@ export function createApp(options: { nodeEnv?: "development" | "test" | "product
   app.use("/api/version", versionRouter);
   app.use("/api/auth", createAuthRouter());
   app.use("/api", requireAuth, requireCsrf);
+  app.use("/api", async (req, res, next) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method) || res.locals.auth?.kind !== "guest") return next();
+    try { await consumeQuota("workspace-write", env.PUBLIC_WRITES_PER_DAY, 86400_000); next(); } catch (error) { next(error); }
+  });
   app.use("/api/connectors", connectorsRouter);
   app.use("/api/search", searchRouter);
-  app.use("/api/search/jobs", (req, res, next) => req.method === "POST" && req.path === "/" ? searchJobCreationLimit(req, res, next) : next(), searchJobsRouter);
+  app.use("/api/search/jobs", (req, res, next) => req.method === "POST" && req.path === "/" ? searchJobCreationLimit(req, res, next) : next(),
+    async (req, res, next) => { if (req.method !== "POST" || req.path !== "/" || res.locals.auth?.kind !== "guest") return next(); try {
+      await consumeQuota("search-job", env.PUBLIC_SEARCH_JOBS_PER_15_MINUTES, 15 * 60_000);
+      const active = await SearchJobModel.countDocuments({ workspaceKey: currentWorkspace(), status: { $in: ["queued", "running"] } });
+      if (active >= env.PUBLIC_MAX_ACTIVE_SEARCHES) throw new AppError(429, "SEARCH_CONCURRENCY_EXCEEDED", "Too many searches are already running in this private workspace");
+      next();
+    } catch (error) { next(error); } }, searchJobsRouter);
   app.use("/api/saved", savedRouter);
   app.use("/api/collections", collectionsRouter);
   const watchCheckLimit=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-8",legacyHeaders:false});
-  app.use("/api/watchlists",(req,res,next)=>req.method==="POST"&&req.path.endsWith("/check")?watchCheckLimit(req,res,next):next(),watchlistsRouter);
+  app.use("/api/watchlists",(req,res,next)=>req.method==="POST"&&req.path.endsWith("/check")?watchCheckLimit(req,res,next):next(),
+    async (req,res,next)=>{if(req.method!=="POST"||!req.path.endsWith("/check")||res.locals.auth?.kind!=="guest")return next();try{await consumeQuota("watch-check",env.PUBLIC_WATCH_CHECKS_PER_DAY,86400_000);next();}catch(error){next(error);}},watchlistsRouter);
   app.use("/api/changes", changesRouter);
   app.use("/api/analytics", analyticsRouter);
   const aiGenerationLimit=rateLimit({windowMs:15*60_000,limit:10,standardHeaders:"draft-8",legacyHeaders:false,handler:(_req,res)=>res.status(429).json({success:false,error:{code:"AI_RATE_LIMITED",message:"Too many AI generation requests; try again later"},meta:{requestId:res.locals.requestId}})});
-  app.use("/api/ai",(req,res,next)=>req.method==="POST"&&req.path.endsWith("/messages")?aiGenerationLimit(req,res,next):next(),aiRouter);
+  app.use("/api/ai",(req,res,next)=>req.method==="POST"&&req.path.endsWith("/messages")?aiGenerationLimit(req,res,next):next(),
+    async(req,res,next)=>{if(req.method!=="POST"||!req.path.endsWith("/messages")||res.locals.auth?.kind!=="guest")return next();try{await consumeQuota("ai-generation",env.PUBLIC_AI_GENERATIONS_PER_DAY,86400_000);next();}catch(error){next(error);}},aiRouter);
   app.use(notFound);
   app.use(createErrorHandler(nodeEnv));
   return app;

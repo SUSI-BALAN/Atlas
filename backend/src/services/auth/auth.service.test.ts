@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { UserModel, WorkspaceModel, WorkspaceMembershipModel, AuthSessionModel } from "../../models/auth.model.js";
+import { UserModel, WorkspaceModel, WorkspaceMembershipModel, AuthSessionModel, GuestWorkspaceModel } from "../../models/auth.model.js";
 import { hashPassword, verifyPassword } from "./password.js";
 import { AuthService, csrfForToken, tokenHash } from "./auth.service.js";
 import { sessionCookie, readSessionCookie } from "../../middleware/auth.js";
@@ -52,6 +52,31 @@ describe("authentication core", () => {
     const service = new AuthService();
     expect(await service.login("missing@example.test", "wrong password")).toBeNull();
     expect(await service.login("owner@example.test", "wrong password")).toBeNull();
+  });
+
+  it("creates isolated guests with random workspace keys and hashed session secrets", async () => {
+    vi.spyOn(GuestWorkspaceModel, "create").mockResolvedValue({ _id: id } as never);
+    const create = vi.spyOn(AuthSessionModel, "create").mockResolvedValue({ _id: id } as never);
+    const service = new AuthService();
+    const first = await service.createGuest();
+    const second = await service.createGuest();
+    expect(first.identity.kind).toBe("guest");
+    expect(first.identity.email).toBeNull();
+    expect(first.identity.workspaceKey).toMatch(/^guest_[a-f\d]{48}$/);
+    expect(first.identity.workspaceKey).not.toBe(second.identity.workspaceKey);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ kind: "guest", userId: null, workspaceKey: first.identity.workspaceKey, sessionTokenHash: tokenHash(first.token) }));
+    expect(JSON.stringify(create.mock.calls)).not.toContain(first.token);
+  });
+
+  it("resolves guest sessions without consulting authenticated user or membership records", async () => {
+    const token = "A".repeat(43);
+    vi.spyOn(AuthSessionModel, "findOne").mockReturnValue(chain({ _id: id, kind: "guest", userId: null, sessionTokenHash: tokenHash(token), csrfTokenHash: tokenHash(csrfForToken(token)), workspaceKey: "guest_isolated", expiresAt: new Date("2030-01-01") }) as never);
+    const findUser = vi.spyOn(UserModel, "findById");
+    const findMembership = vi.spyOn(WorkspaceMembershipModel, "findOne");
+    const identity = await new AuthService().resolve(token);
+    expect(identity).toMatchObject({ kind: "guest", userId: null, email: null, workspaceKey: "guest_isolated", role: "guest" });
+    expect(findUser).not.toHaveBeenCalled();
+    expect(findMembership).not.toHaveBeenCalled();
   });
 
   it("rejects expired, revoked, disabled-user and missing-membership sessions", async () => {

@@ -5,7 +5,7 @@ import { listConnectors } from "../services/api";
 const navigation = [
   ["/", "Overview"], ["/search", "Universal search"], ["/sources", "Sources"],
   ["/saved", "Saved"], ["/collections", "Collections"], ["/watchlists", "Watchlists"],
-  ["/changes", "Changes"], ["/analytics", "Analytics"], ["/ai", "AI research"], ["/settings", "Settings"]
+  ["/changes", "Changes"], ["/analytics", "Analytics"], ["/ai", "AI research"], ["/settings", "Session"]
 ] as const;
 
 export function AppLayout() {
@@ -27,7 +27,7 @@ export function AppLayout() {
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <div><span className="eyebrow">Workspace</span><strong>Personal research</strong></div>
+          <div><span className="eyebrow">Private guest workspace</span><strong>No account required</strong></div>
           <div className="top-status"><span className={`status-dot ${degraded || connectors.isError ? "degraded" : ""}`} />{sourceStatus}</div>
         </header>
         <main><Outlet /></main>
