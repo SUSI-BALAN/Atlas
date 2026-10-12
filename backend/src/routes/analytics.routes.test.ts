@@ -1,0 +1,12 @@
+import express from "express";import request from "supertest";import {describe,expect,it,vi} from "vitest";import {createErrorHandler} from "../middleware/errorHandler.js";import {requestId} from "../middleware/requestId.js";import {createAnalyticsRouter} from "./analytics.routes.js";
+const service=()=>({summary:vi.fn(async()=>({})),sources:vi.fn(async()=>({})),languages:vi.fn(async()=>({})),saved:vi.fn(async()=>({})),collections:vi.fn(async()=>({})),watchlists:vi.fn(async()=>({})),changes:vi.fn(async()=>({})),searches:vi.fn(async()=>({}))});
+const app=(value:any,nodeEnv:"test"|"production"="test")=>{const result=express();result.use(requestId,createAnalyticsRouter(value),createErrorHandler(nodeEnv));return result};
+describe("analytics routes",()=>{
+ it("accepts an ISO date range",async()=>{const s=service();expect((await request(app(s)).get("/changes?from=2026-01-01T00:00:00.000Z&to=2026-01-30T00:00:00.000Z")).status).toBe(200);expect(s.changes).toHaveBeenCalledWith(expect.objectContaining({from:expect.any(Date),to:expect.any(Date)}));});
+ it("rejects invalid and reversed date ranges",async()=>{const s=service();expect((await request(app(s)).get("/changes?from=nope")).status).toBe(400);expect((await request(app(s)).get("/changes?from=2026-02-01T00:00:00Z&to=2026-01-01T00:00:00Z")).status).toBe(400);});
+ it("rejects ranges over 365 days",async()=>expect((await request(app(service())).get("/changes?from=2024-01-01T00:00:00Z&to=2026-01-01T00:00:00Z")).status).toBe(400));
+ it("rejects unknown sources",async()=>expect((await request(app(service())).get("/changes?source=unknown")).status).toBe(400));
+ it("bounds analytics limits",async()=>{expect((await request(app(service())).get("/languages?limit=0")).status).toBe(400);expect((await request(app(service())).get("/languages?limit=26")).status).toBe(400);});
+ it("returns request IDs in successful envelopes",async()=>{const response=await request(app(service())).get("/sources");expect(response.body).toMatchObject({success:true,meta:{requestId:expect.any(String)}});});
+ it("sanitizes unexpected production errors",async()=>{const s=service();s.sources=vi.fn(async()=>{throw new Error("mongodb secret detail")});const response=await request(app(s,"production")).get("/sources");expect(response.body).toMatchObject({success:false,error:{code:"INTERNAL_ERROR",message:"An unexpected error occurred"},meta:{requestId:expect.any(String)}});expect(JSON.stringify(response.body)).not.toContain("mongodb secret detail");});
+});

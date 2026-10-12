@@ -1,0 +1,11 @@
+import express from "express";import request from "supertest";import {describe,expect,it,vi} from "vitest";import {createErrorHandler} from "../middleware/errorHandler.js";import {requestId} from "../middleware/requestId.js";import {createWatchlistsRouter} from "./watchlists.routes.js";
+const id="507f1f77bcf86cd799439011";
+function app(service:any){const app=express();app.use(requestId,express.json(),createWatchlistsRouter(service),createErrorHandler("test"));return app;}
+function service(){return{create:vi.fn(async(v)=>({watchlistId:id,...v})),list:vi.fn(async()=>({watchlists:[],nextCursor:null,hasMore:false})),get:vi.fn(),update:vi.fn(),remove:vi.fn(),addRepository:vi.fn(),removeRepository:vi.fn(),repositories:vi.fn(),startCheck:vi.fn(),runs:vi.fn()};}
+describe("watchlist routes",()=>{
+ it("creates a validated watchlist",async()=>{const s=service();const r=await request(app(s)).post("/").send({name:"Core",description:"",enabled:true,checkIntervalMinutes:15});expect(r.status).toBe(201);expect(s.create).toHaveBeenCalled();});
+ it("rejects sub-minute and short intervals",async()=>{const r=await request(app(service())).post("/").send({name:"Core",checkIntervalMinutes:1});expect(r.status).toBe(400);expect(r.body.error.code).toBe("VALIDATION_ERROR");});
+ it("validates ObjectIds",async()=>expect((await request(app(service())).get("/bad")).status).toBe(400));
+ it("returns the standard list envelope",async()=>{const r=await request(app(service())).get("/");expect(r.body).toMatchObject({success:true,data:{watchlists:[]}});expect(r.body.meta.requestId).toBeTruthy();});
+ it("forwards update, delete, membership, and manual-check actions",async()=>{const s=service();s.update.mockResolvedValue({watchlistId:id});s.remove.mockResolvedValue({deleted:true});s.addRepository.mockResolvedValue({});s.removeRepository.mockResolvedValue({deleted:true});s.startCheck.mockResolvedValue({runId:id});expect((await request(app(s)).patch(`/${id}`).send({enabled:false})).status).toBe(200);expect((await request(app(s)).delete(`/${id}`)).status).toBe(200);expect((await request(app(s)).post(`/${id}/repositories/${id}`)).status).toBe(201);expect((await request(app(s)).delete(`/${id}/repositories/${id}`)).status).toBe(200);expect((await request(app(s)).post(`/${id}/check`)).status).toBe(202);});
+});

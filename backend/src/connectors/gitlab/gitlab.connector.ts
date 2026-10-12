@@ -19,7 +19,7 @@ export class GitLabConnector implements PlatformConnector {
     search: true, itemDetails: true, comments: false, repositories: true, users: false,
     issues: false, pullRequests: false, releases: false, commits: false, changeTracking: false
   };
-  #health: ConnectorHealth = { status: "healthy", message: null, lastSuccessfulRequestAt: null };
+  #health: ConnectorHealth = { status: "unavailable", message: "Connector has not completed a request yet", lastSuccessfulRequestAt: null, lastCheckedAt: null };
   constructor(private readonly client: GitLabClient, options: { enabled?: boolean; tokenConfigured?: boolean; homepageUrl?: string } = {}) {
     this.homepageUrl = options.homepageUrl ?? "https://gitlab.com/";
     this.enabled = options.enabled ?? true;
@@ -37,11 +37,11 @@ export class GitLabConnector implements PlatformConnector {
     const params = projectParams(request);
     try {
       const response = await this.client.get<GitLabProject[]>(`/projects?${params}`, context.signal);
-      if (!Array.isArray(response.body) || !response.body.every(isGitLabProject)) throw new ConnectorError(this.id, "malformed_response", "GitLab returned an unexpected project search response", false);
-      const rows = response.body.filter((row) => matchesFilters(row, request));
-      const items = rows.map((row) => mapGitLabProject(row, this.version, context));
+      const rows = validatedProjects(response.body);
+      const filteredRows = rows.filter((row) => matchesFilters(row, request));
+      const items = filteredRows.map((row) => mapGitLabProject(row, this.version, context));
       this.recordSuccess(startedAt);
-      return { items, rawItems: items.map((item, index) => gitLabRawItem(item, rows[index])), total: response.total, hasMore: response.nextPage !== null, rateLimit: this.getRateLimitStatus() };
+      return { items, rawItems: items.map((item, index) => gitLabRawItem(item, filteredRows[index])), total: response.total, hasMore: response.nextPage !== null, rateLimit: this.getRateLimitStatus() };
     } catch (error) { this.recordFailure(error); throw error; }
   }
 
@@ -51,10 +51,10 @@ export class GitLabConnector implements PlatformConnector {
     if (request.sourceType !== "repository" || !request.locator.trim()) throw new ConnectorError(this.id, "validation", "GitLab repository locator must be a project ID or namespace/name", false);
     try {
       const response = await this.client.get<GitLabProject>(`/projects/${encodeURIComponent(request.locator)}`, context.signal);
-      if (!isGitLabProject(response.body)) throw new ConnectorError(this.id, "malformed_response", "GitLab returned an unexpected project response", false);
-      const item = mapGitLabProject(response.body, this.version, context);
+      const project = validatedProject(response.body);
+      const item = mapGitLabProject(project, this.version, context);
       this.recordSuccess();
-      return { item, rawItem: gitLabRawItem(item, response.body), rateLimit: this.getRateLimitStatus() };
+      return { item, rawItem: gitLabRawItem(item, project), rateLimit: this.getRateLimitStatus() };
     } catch (error) { this.recordFailure(error); throw error; }
   }
   fetchUpdates(request: FetchItemRequest, context: ConnectorContext): Promise<ConnectorItemResult> { return this.fetchItem(request, context); }
@@ -92,10 +92,76 @@ function matchesFilters(row: GitLabProject, request: ConnectorSearchRequest): bo
   return true;
 }
 
-function isGitLabProject(value: unknown): value is GitLabProject {
-  if (typeof value !== "object" || value === null) return false;
-  const row = value as Partial<GitLabProject>;
-  return typeof row.id === "number" && typeof row.name === "string" && typeof row.name_with_namespace === "string" && typeof row.path_with_namespace === "string"
-    && typeof row.web_url === "string" && typeof row.star_count === "number" && typeof row.forks_count === "number" && typeof row.created_at === "string"
-    && typeof row.last_activity_at === "string" && typeof row.namespace === "object" && row.namespace !== null && typeof row.namespace.id === "number" && typeof row.namespace.full_path === "string";
+function validatedProjects(value: unknown): GitLabProject[] {
+  if (!Array.isArray(value)) throw malformedProjects(["response"]);
+  const failures = value.map((project, index) => ({ index, fields: projectValidationFailures(project) })).filter((entry) => entry.fields.length > 0);
+  if (failures.length > 0) throw malformedProjects(failures.flatMap(({ index, fields }) => fields.map((field) => `${index}.${field}`)));
+  return value as GitLabProject[];
+}
+
+function validatedProject(value: unknown): GitLabProject {
+  const fields = projectValidationFailures(value);
+  if (fields.length > 0) throw new ConnectorError("gitlab", "malformed_response", `GitLab project response failed validation at fields: ${fields.slice(0, 12).join(", ")}${fields.length > 12 ? ` (+${fields.length - 12} more)` : ""}`, false);
+  return value as GitLabProject;
+}
+
+function malformedProjects(paths: string[]): ConnectorError {
+  const shown = paths.slice(0, 12);
+  const suffix = paths.length > shown.length ? ` (+${paths.length - shown.length} more)` : "";
+  return new ConnectorError("gitlab", "malformed_response", `GitLab project search response failed validation at record fields: ${shown.join(", ")}${suffix}`, false);
+}
+
+function projectValidationFailures(value: unknown): string[] {
+  if (!isRecord(value)) return ["record"];
+  const failures: string[] = [];
+  required(value, "id", "number", failures);
+  required(value, "name", "string", failures);
+  required(value, "name_with_namespace", "string", failures);
+  required(value, "path_with_namespace", "string", failures);
+  nullable(value, "description", "string", failures);
+  required(value, "web_url", "string", failures);
+  required(value, "star_count", "number", failures);
+  required(value, "forks_count", "number", failures);
+  optionalNumber(value, "open_issues_count", failures);
+  required(value, "created_at", "string", failures);
+  required(value, "last_activity_at", "string", failures);
+  optional(value, "updated_at", "string", false, failures);
+  optional(value, "http_url_to_repo", "string", false, failures);
+  optional(value, "avatar_url", "string", true, failures);
+  optional(value, "default_branch", "string", true, failures);
+  optional(value, "archived", "boolean", false, failures);
+  optional(value, "visibility", "string", false, failures);
+  optional(value, "readme_url", "string", true, failures);
+  optionalStringArray(value, "topics", failures);
+  optionalStringArray(value, "tag_list", failures);
+  if (!isRecord(value.namespace)) failures.push("namespace");
+  else {
+    required(value.namespace, "id", "number", failures, "namespace.");
+    required(value.namespace, "name", "string", failures, "namespace.");
+    required(value.namespace, "full_path", "string", failures, "namespace.");
+    optional(value.namespace, "kind", "string", false, failures, "namespace.");
+    optional(value.namespace, "avatar_url", "string", true, failures, "namespace.");
+    optional(value.namespace, "web_url", "string", false, failures, "namespace.");
+  }
+  return failures;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function required(record: Record<string, unknown>, field: string, type: "string" | "number" | "boolean", failures: string[], prefix = ""): void {
+  if (typeof record[field] !== type || (type === "number" && !Number.isFinite(record[field]))) failures.push(`${prefix}${field}`);
+}
+function nullable(record: Record<string, unknown>, field: string, type: "string", failures: string[]): void {
+  if (record[field] !== null && typeof record[field] !== type) failures.push(field);
+}
+function optional(record: Record<string, unknown>, field: string, type: "string" | "boolean", allowNull: boolean, failures: string[], prefix = ""): void {
+  const value = record[field];
+  if (value !== undefined && !(allowNull && value === null) && typeof value !== type) failures.push(`${prefix}${field}`);
+}
+function optionalNumber(record: Record<string, unknown>, field: string, failures: string[]): void {
+  const value = record[field];
+  if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value))) failures.push(field);
+}
+function optionalStringArray(record: Record<string, unknown>, field: string, failures: string[]): void {
+  const value = record[field];
+  if (value !== undefined && (!Array.isArray(value) || !value.every((entry) => typeof entry === "string"))) failures.push(field);
 }

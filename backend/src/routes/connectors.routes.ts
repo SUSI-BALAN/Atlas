@@ -3,6 +3,7 @@ import { connectorRegistry } from "../composition.js";
 import { logger } from "../config/logger.js";
 import type { PlatformConnector } from "../connectors/core/connector.interface.js";
 import { AppError } from "../middleware/errorHandler.js";
+import { classifyError } from "../utils/safeError.js";
 
 export const connectorsRouter = Router();
 
@@ -16,11 +17,10 @@ function publicMetadata(connector: PlatformConnector, requestId: string | undefi
   try {
     return { ...metadata, health: connector.getHealth(), rateLimit: connector.getRateLimitStatus() };
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    logger.error({ err: error, connectorId: connector.id, connectorName: connector.name, reason, requestId }, "Connector status read failed");
+    logger.error({ error: classifyError(error), connectorId: connector.id, connectorName: connector.name, requestId }, "Connector status read failed");
     return {
       ...metadata,
-      health: { status: "unavailable" as const, message: `${connector.name} status unavailable: ${reason}`, lastSuccessfulRequestAt: null },
+      health: { status: "unavailable" as const, message: `${connector.name} status is unavailable`, lastSuccessfulRequestAt: null },
       rateLimit: { limit: null, remaining: null, resetAt: null, retryAfterSeconds: null }
     };
   }

@@ -38,6 +38,7 @@ export interface SearchContext {
 
 export interface NormalizedRepository {
   id: string;
+  repositoryId?: string;
   source: RepositorySource;
   externalId: string;
   owner: string;

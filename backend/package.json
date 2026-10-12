@@ -8,7 +8,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "watch:run": "tsx src/workers/watchRunner.ts",
+    "auth:bootstrap": "tsx src/cli/bootstrapOwner.ts",
+    "auth:reset-password": "tsx src/cli/resetPassword.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -19,6 +22,7 @@
     "mongoose": "^8.18.0",
     "pino": "^9.9.0",
     "pino-http": "^10.5.0",
+    "qs": "6.16.0",
     "zod": "^4.1.5"
   },
   "devDependencies": {

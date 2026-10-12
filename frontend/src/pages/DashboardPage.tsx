@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { health, listConnectors } from "../services/api";
+import { health, listConnectors, workspaceSummary } from "../services/api";
 
 export function DashboardPage() {
   const healthQuery = useQuery({ queryKey: ["health"], queryFn: health });
   const connectors = useQuery({ queryKey: ["connectors"], queryFn: listConnectors });
+  const summary = useQuery({ queryKey: ["workspace-summary"], queryFn: workspaceSummary, retry: false });
   const apiStatus = healthQuery.isPending ? "Checking" : healthQuery.isError ? "Disconnected" : healthQuery.data.status;
   const databaseStatus = healthQuery.isError ? "Unavailable" : healthQuery.data?.database ?? "Unknown";
   return (
@@ -13,8 +14,8 @@ export function DashboardPage() {
       <div className="stats-grid">
         <Stat label="Active connectors" value={connectors.data?.length ?? "—"} detail="Five public code forges connected" />
         <Stat label="API status" value={apiStatus} detail={`Database: ${databaseStatus}`} />
-        <Stat label="Saved items" value="0" detail="Research management arrives in M5" />
-        <Stat label="Watchlists" value="0" detail="Monitoring arrives in M6" />
+        <Stat label="Saved repositories" value={summary.data?.savedRepositories ?? "—"} detail={`${summary.data?.collections ?? 0} collections`} />
+        <Stat label="Watchlists" value={summary.data?.watchlists ?? "—"} detail={`${summary.data?.recentChanges ?? 0} changes in the last 7 days`} />
       </div>
       <div className="panel-grid">
         <article className="panel"><span className="eyebrow">Quick start</span><h2>Research across every forge</h2><p>Run a focused topic search, collect additional pages, and retain each result's original source and provenance.</p><Link to="/search">Open universal search →</Link></article>

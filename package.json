@@ -8,9 +8,15 @@
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
     "build": "npm run build --workspace backend && npm run build --workspace frontend",
-    "test": "npm run test --workspace backend && npm run test --workspace frontend",
+    "test": "npm run test --workspace backend && npm run test --workspace frontend && npm run test:release-tooling",
     "typecheck": "npm run typecheck --workspace backend && npm run typecheck --workspace frontend",
-    "verify:storage": "node scripts/verify-storage.mjs"
+    "verify:storage": "node scripts/verify-storage.mjs",
+    "test:release-tooling": "node --test scripts/release-tooling.test.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs",
+    "verify:production": "node scripts/verify-production.mjs",
+    "watch:run": "npm run watch:run --workspace backend",
+    "auth:bootstrap": "npm run auth:bootstrap --workspace backend",
+    "auth:reset-password": "npm run auth:reset-password --workspace backend"
   },
   "devDependencies": { "concurrently": "^9.2.1" },
   "engines": { "node": ">=20.0.0" }

@@ -28,7 +28,7 @@ export class GitHubConnector implements PlatformConnector {
     issues: true, pullRequests: true, releases: true, commits: true, changeTracking: true
   };
 
-  #health: ConnectorHealth = { status: "healthy", message: null, lastSuccessfulRequestAt: null };
+  #health: ConnectorHealth = { status: "unavailable", message: "Connector has not completed a request yet", lastSuccessfulRequestAt: null, lastCheckedAt: null };
 
   constructor(private readonly client: GitHubClient, options: { enabled?: boolean; tokenConfigured?: boolean } = {}) {
     this.enabled = options.enabled ?? true;

@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 
 describe("GET /api/health", () => {
+  it("exposes non-secret release identity fields", async () => {
+    const response = await request(createApp()).get("/api/version");
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({ version: "0.1.0", buildId: null, commit: null });
+    expect(response.body.meta.requestId).toBeTruthy();
+  });
+
   it("returns dependency-aware health data", async () => {
     const response = await request(createApp()).get("/api/health");
     expect(response.status).toBe(200);

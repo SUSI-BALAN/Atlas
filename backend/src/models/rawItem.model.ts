@@ -1,6 +1,7 @@
 import { Schema, model } from "mongoose";
 
 const rawItemSchema = new Schema({
+  workspaceKey: { type: String, required: true },
   source: { type: String, required: true, index: true },
   sourceId: { type: String, required: true },
   sourceType: { type: String, required: true },

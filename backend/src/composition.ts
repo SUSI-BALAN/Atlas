@@ -9,6 +9,7 @@ import { ForgeConnector } from "./connectors/forge/forge.connector.js";
 import { env } from "./config/env.js";
 import { SearchService } from "./services/search/search.service.js";
 import { SearchJobService } from "./services/searchJobs/searchJob.service.js";
+import { WatchService } from "./services/watch/watch.service.js";
 
 export const connectorRegistry = new ConnectorRegistry();
 const clientOptions = {
@@ -40,3 +41,5 @@ for (const config of forgeConfigs) {
 export const connectorFactory = new ConnectorFactory(connectorRegistry);
 export const searchService = new SearchService(connectorRegistry, env.SEARCH_CONCURRENCY);
 export const searchJobService = new SearchJobService(connectorRegistry, env.SEARCH_CONCURRENCY);
+export const watchService = new WatchService(connectorRegistry, env.WATCH_CHECK_CONCURRENCY);
+export type { WatchService } from "./services/watch/watch.service.js";

@@ -24,3 +24,4 @@ export const searchJobSchema = z.object({
 });
 
 export const jobResultsQuerySchema = z.object({ cursor: z.string().regex(/^[a-f\d]{24}$/i).optional(), limit: z.coerce.number().int().min(1).max(100).default(50) });
+export const jobHistoryQuerySchema = z.object({ cursor: z.string().regex(/^[a-f\d]{24}$/i).optional(), limit: z.coerce.number().int().min(1).max(50).default(20) });

@@ -1,11 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildApiUrl, listConnectors, searchExportUrl } from "./api";
+import { authLogin, buildApiUrl, createCollection, listConnectors, searchExportUrl } from "./api";
 
 describe("API response handling", () => {
   it("reports empty proxy responses as an API error instead of throwing JSON parse errors", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 502 })));
     await expect(listConnectors()).rejects.toThrow("API unavailable (502)");
     vi.unstubAllGlobals();
+  });
+
+  it("uses cookie credentials and a session CSRF header without browser storage", async () => {
+    const local = vi.spyOn(Storage.prototype, "setItem");
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => new Response(JSON.stringify({ success: true, data: url.endsWith("/csrf") ? { token: "session-bound-csrf" } : url.endsWith("/login") ? { email: "owner@example.test" } : { name: "Research" } }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await authLogin("owner@example.test", "correct horse battery staple");
+    await createCollection({ name: "Research", description: "" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/csrf", expect.objectContaining({ credentials: "include" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/collections", expect.objectContaining({ credentials: "include", headers: expect.objectContaining({ "x-csrf-token": "session-bound-csrf" }) }));
+    expect(local).not.toHaveBeenCalled();
+    local.mockRestore(); vi.unstubAllGlobals();
   });
 });
 

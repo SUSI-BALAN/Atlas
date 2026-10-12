@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
+import { classifyError } from "../utils/safeError.js";
 
 let status: "disconnected" | "connecting" | "connected" | "degraded" = "disconnected";
 let lastError: { name: string; code: string | null; occurredAt: string } | null = null;
@@ -14,12 +15,13 @@ export async function connectDatabase(): Promise<void> {
     logger.info("MongoDB connected");
   } catch (error) {
     status = "degraded";
+    const classification = classifyError(error);
     lastError = {
-      name: error instanceof Error ? error.name : "DatabaseError",
-      code: typeof error === "object" && error !== null && "code" in error ? String(error.code) : null,
+      name: classification.name,
+      code: classification.code,
       occurredAt: new Date().toISOString()
     };
-    logger.error({ err: error }, "MongoDB connection failed");
+    logger.error({ error: classification }, "MongoDB connection failed");
     throw error;
   }
 }

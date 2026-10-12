@@ -10,15 +10,19 @@ import { SearchCacheModel } from "../../models/searchCache.model.js";
 import { SearchJobModel } from "../../models/searchJob.model.js";
 import { AppError } from "../../middleware/errorHandler.js";
 import type { NormalizedRepository, RepositorySearchBatch, RepositorySearchRequest, RepositorySource } from "../../types/repositorySearch.js";
-import type { SearchJobSnapshot, SearchJobStatus, SourceProgress } from "../../types/searchJob.js";
+import type { SearchJobSnapshot, SearchJobStatus, SearchJobSummary, SourceProgress } from "../../types/searchJob.js";
+import { classifyError } from "../../utils/safeError.js";
+import { currentWorkspace } from "../workspaceContext.js";
 
 interface CreateInput extends Omit<RepositorySearchRequest, "sources" | "resultLimit"> { sources: RepositorySource[] | "all"; resultLimit?: number | null | undefined; }
 interface ResultPage { results: NormalizedRepository[]; nextCursor: string | null; hasMore: boolean; }
+interface HistoryPage { jobs: SearchJobSummary[]; nextCursor: string | null; hasMore: boolean; }
 
 export class SearchJobService {
   readonly #controllers = new Map<string, AbortController>();
   readonly #memoryJobs = new Map<string, SearchJobSnapshot>();
   readonly #memoryResults = new Map<string, NormalizedRepository[]>();
+  readonly #memoryOwners = new Map<string, string>();
 
   constructor(private readonly registry: ConnectorRegistry, private readonly concurrency: number) {}
 
@@ -28,6 +32,7 @@ export class SearchJobService {
     if (sources.length === 0) throw new AppError(400, "NO_ENABLED_SOURCES", "No selected repository connector is enabled");
     const request: RepositorySearchRequest = { ...input, sources, resultLimit: input.resultLimit ?? null };
     if (request.collectionMode === "all" && !isDatabaseConnected()) throw new AppError(503, "DATABASE_REQUIRED", "All-results collection requires MongoDB so batches are not retained in process memory");
+    const workspaceKey = currentWorkspace();
     const cacheKey = searchCacheKey(request);
     const cached = await this.cachedJob(cacheKey);
     if (cached) return { ...cached, cached: true };
@@ -36,12 +41,13 @@ export class SearchJobService {
     const sourceProgress = sources.map((source): SourceProgress => ({ source, status: "queued", fetched: 0, pages: 0, total: null, rateLimit: null, cursor: null, error: null, updatedAt: now }));
     let snapshot: SearchJobSnapshot;
     if (isDatabaseConnected()) {
-      const document = await SearchJobModel.create({ status: "queued", request, cacheKey, sourceProgress, totalUnique: 0, cancelRequested: false, cached: false, requestId });
+      const document = await SearchJobModel.create({ workspaceKey, status: "queued", request, cacheKey, sourceProgress, totalUnique: 0, cancelRequested: false, cached: false, requestId });
       snapshot = toSnapshot(document.toObject());
     } else {
       const jobId = new Types.ObjectId().toString();
       snapshot = { jobId, status: "queued", request, sourceProgress, totalUnique: 0, cancelRequested: false, cached: false, createdAt: now, startedAt: null, completedAt: null };
       this.#memoryJobs.set(jobId, snapshot);
+      this.#memoryOwners.set(jobId, workspaceKey);
       this.#memoryResults.set(jobId, []);
     }
     queueMicrotask(() => void this.run(snapshot.jobId, cacheKey, requestId));
@@ -51,19 +57,39 @@ export class SearchJobService {
   async get(jobId: string): Promise<SearchJobSnapshot> {
     assertObjectId(jobId);
     if (isDatabaseConnected()) {
-      const document = await SearchJobModel.findById(jobId).lean();
+      const document = await SearchJobModel.findOne({ _id: jobId, workspaceKey: currentWorkspace() }).lean();
       if (!document) throw new AppError(404, "SEARCH_JOB_NOT_FOUND", "Search job was not found");
       return toSnapshot(document);
     }
     const job = this.#memoryJobs.get(jobId);
-    if (!job) throw new AppError(404, "SEARCH_JOB_NOT_FOUND", "Search job was not found");
+    if (!job || this.#memoryOwners.get(jobId) !== currentWorkspace()) throw new AppError(404, "SEARCH_JOB_NOT_FOUND", "Search job was not found");
     return job;
+  }
+
+  async list(cursor: string | undefined, limit: number): Promise<HistoryPage> {
+    if (cursor) assertObjectId(cursor, "INVALID_HISTORY_CURSOR", "Search history cursor is invalid");
+    if (isDatabaseConnected()) {
+      let query: Record<string, unknown> = { workspaceKey: currentWorkspace() };
+      if (cursor) {
+        const boundary = await SearchJobModel.findOne({ _id: cursor, workspaceKey: currentWorkspace() }).select({ createdAt: 1 }).lean();
+        if (!boundary?.createdAt) throw new AppError(400, "INVALID_HISTORY_CURSOR", "Search history cursor does not exist");
+        query = { workspaceKey: currentWorkspace(), $or: [{ createdAt: { $lt: boundary.createdAt } }, { createdAt: boundary.createdAt, _id: { $lt: new Types.ObjectId(cursor) } }] };
+      }
+      const documents = await SearchJobModel.find(query).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).lean();
+      const hasMore = documents.length > limit;
+      const page = documents.slice(0, limit);
+      return { jobs: page.map(toSummary), nextCursor: page.length > 0 ? String(page.at(-1)?._id) : cursor ?? null, hasMore };
+    }
+    const jobs = [...this.#memoryJobs.values()].filter(job => this.#memoryOwners.get(job.jobId) === currentWorkspace()).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const offset = cursor ? Math.max(0, jobs.findIndex((job) => job.jobId === cursor) + 1) : 0;
+    const page = jobs.slice(offset, offset + limit);
+    return { jobs: page.map(snapshotToSummary), nextCursor: page.at(-1)?.jobId ?? cursor ?? null, hasMore: offset + page.length < jobs.length };
   }
 
   async results(jobId: string, cursor: string | undefined, limit: number): Promise<ResultPage> {
     await this.get(jobId);
     if (isDatabaseConnected()) {
-      const query: Record<string, unknown> = { jobId: new Types.ObjectId(jobId) };
+      const query: Record<string, unknown> = { workspaceKey: currentWorkspace(), jobId: new Types.ObjectId(jobId) };
       if (cursor) query._id = { $gt: new Types.ObjectId(cursor) };
       const documents = await RepositoryResultModel.find(query).sort({ _id: 1 }).limit(limit + 1).lean();
       const hasMore = documents.length > limit;
@@ -77,6 +103,37 @@ export class SearchJobService {
     return { results: page, nextCursor: page.length > 0 ? next.toString(16).padStart(24, "0") : cursor ?? null, hasMore: next < rows.length };
   }
 
+  async repository(jobId: string, repositoryId: string): Promise<NormalizedRepository> {
+    assertObjectId(jobId);
+    assertObjectId(repositoryId, "INVALID_REPOSITORY_ID", "Repository result ID is invalid");
+    await this.get(jobId);
+    if (isDatabaseConnected()) {
+      const document = await RepositoryResultModel.findOne({ _id: new Types.ObjectId(repositoryId), jobId: new Types.ObjectId(jobId), workspaceKey: currentWorkspace() }).lean();
+      if (!document) throw new AppError(404, "REPOSITORY_RESULT_NOT_FOUND", "Repository result was not found for this search job");
+      return repositoryFromDocument(document);
+    }
+    const repository = (this.#memoryResults.get(jobId) ?? []).find((entry) => entry.repositoryId === repositoryId);
+    if (!repository) throw new AppError(404, "REPOSITORY_RESULT_NOT_FOUND", "Repository result was not found for this search job");
+    return sanitizeRepository(repository);
+  }
+
+  async reconcileInterruptedJobs(): Promise<number> {
+    if (!isDatabaseConnected()) return 0;
+    const interrupted = await SearchJobModel.find({ status: { $in: ["queued", "running", "rate_limited"] } }).lean();
+    const completedAt = new Date();
+    for (const document of interrupted) {
+      const progress = (document.sourceProgress as SourceProgress[]).map((entry) =>
+        ["queued", "running", "rate_limited"].includes(entry.status)
+          ? { ...entry, status: "failed" as const, error: { code: "PROCESS_INTERRUPTED", message: "Collection stopped when the API process restarted. Retry this source to continue safely.", retryable: true }, updatedAt: completedAt.toISOString() }
+          : entry
+      );
+      const hasCompleted = progress.some((entry) => entry.status === "completed");
+      await SearchJobModel.updateOne({ _id: document._id, status: { $in: ["queued", "running", "rate_limited"] } }, { $set: { status: hasCompleted ? "partially_complete" : "failed", sourceProgress: progress, completedAt } });
+    }
+    if (interrupted.length > 0) logger.warn({ count: interrupted.length }, "Reconciled interrupted search jobs without replaying provider requests");
+    return interrupted.length;
+  }
+
   async cancel(jobId: string): Promise<SearchJobSnapshot> {
     const job = await this.get(jobId);
     if (["completed", "cancelled", "failed", "partially_complete"].includes(job.status)) return job;
@@ -88,10 +145,19 @@ export class SearchJobService {
   async retrySource(jobId: string, source: RepositorySource, requestId: string): Promise<SearchJobSnapshot> {
     const job = await this.get(jobId);
     if (!job.request.sources.includes(source)) throw new AppError(400, "SOURCE_NOT_IN_JOB", "Source is not part of this job");
-    const controller = this.#controllers.get(jobId) ?? new AbortController();
-    this.#controllers.set(jobId, controller);
     const progress = job.sourceProgress.find((entry) => entry.source === source);
-    void this.processSource(jobId, source, job.request, requestId, controller.signal, progress?.cursor?.partition === null ? (progress.cursor.page + 1) : undefined).then(() => this.finalize(jobId, searchCacheKey(job.request)));
+    const retryableFailure = progress?.status === "failed" && progress.error?.retryable === true;
+    if (progress?.status !== "rate_limited" && !retryableFailure) {
+      throw new AppError(409, "SOURCE_NOT_RETRYABLE", "Only retryable failed or rate-limited sources can be retried");
+    }
+    const currentController = this.#controllers.get(jobId);
+    const controller = currentController && !currentController.signal.aborted ? currentController : new AbortController();
+    this.#controllers.set(jobId, controller);
+    await this.patchSource(jobId, source, { status: "queued" });
+    await this.patchJob(jobId, { status: "running", cancelRequested: false, completedAt: null });
+    void this.processSource(jobId, source, job.request, requestId, controller.signal, progress.cursor?.partition === null ? (progress.cursor.page + 1) : undefined)
+      .then(() => this.finalize(jobId, searchCacheKey(job.request)))
+      .finally(() => { if (this.#controllers.get(jobId) === controller) this.#controllers.delete(jobId); });
     return this.get(jobId);
   }
 
@@ -128,7 +194,7 @@ export class SearchJobService {
         error: { code: connectorError?.code.toUpperCase() ?? "CONNECTOR_ERROR", message: connectorError?.message ?? "Connector search failed", retryable: connectorError?.retryable ?? false },
         rateLimit: connector?.getRateLimitStatus() ?? null
       });
-      logger.warn({ err: error, connector: source, jobId }, "Search job source stopped");
+      logger.warn({ error: classifyError(error), connector: source, jobId }, "Search job source stopped");
     }
   }
 
@@ -138,7 +204,7 @@ export class SearchJobService {
       const jobObjectId = new Types.ObjectId(jobId);
       if (uniqueRepositories.length > 0) {
         const canonicalUrls = [...new Set(uniqueRepositories.map((repository) => canonicalizeUrl(repository.repositoryUrl)))];
-        const existingUrls = await RepositoryResultModel.find({ jobId: jobObjectId, canonicalUrl: { $in: canonicalUrls } }).select({ _id: 1, canonicalUrl: 1 }).lean();
+        const existingUrls = await RepositoryResultModel.find({ workspaceKey: currentWorkspace(), jobId: jobObjectId, canonicalUrl: { $in: canonicalUrls } }).select({ _id: 1, canonicalUrl: 1 }).lean();
         const canonicalOwners = new Map(existingUrls.map((row) => [String(row.canonicalUrl), row._id]));
         const operations = uniqueRepositories.map((repository) => {
           const canonicalUrl = canonicalizeUrl(repository.repositoryUrl);
@@ -147,14 +213,14 @@ export class SearchJobService {
           if (!duplicateUrlOf) canonicalOwners.set(canonicalUrl, documentId);
           return {
             updateOne: {
-              filter: { jobId: jobObjectId, source: repository.source, externalId: repository.externalId },
+              filter: { workspaceKey: currentWorkspace(), jobId: jobObjectId, source: repository.source, externalId: repository.externalId },
               update: { $setOnInsert: repositoryDocument(jobObjectId, repository, documentId, duplicateUrlOf) }, upsert: true
             }
           };
         });
         await RepositoryResultModel.bulkWrite(operations, { ordered: false });
       }
-      const totalUnique = await RepositoryResultModel.countDocuments({ jobId: jobObjectId });
+      const totalUnique = await RepositoryResultModel.countDocuments({ workspaceKey: currentWorkspace(), jobId: jobObjectId });
       await this.patchJob(jobId, { totalUnique });
       return;
     }
@@ -184,20 +250,20 @@ export class SearchJobService {
     const status: SearchJobStatus = limited > 0 && completed === 0 ? "rate_limited" : failed + limited > 0 && completed > 0 ? "partially_complete" : completed === 0 ? "failed" : "completed";
     await this.patchJob(jobId, { status, completedAt: new Date().toISOString() });
     if (isDatabaseConnected() && (status === "completed" || status === "partially_complete") && env.SEARCH_CACHE_TTL_SECONDS > 0) {
-      await SearchCacheModel.updateOne({ cacheKey }, { $set: { jobId: new Types.ObjectId(jobId), expiresAt: new Date(Date.now() + env.SEARCH_CACHE_TTL_SECONDS * 1000) } }, { upsert: true });
+      await SearchCacheModel.updateOne({ workspaceKey: currentWorkspace(), cacheKey }, { $set: { jobId: new Types.ObjectId(jobId), expiresAt: new Date(Date.now() + env.SEARCH_CACHE_TTL_SECONDS * 1000) } }, { upsert: true });
     }
   }
 
   private async cachedJob(cacheKey: string): Promise<SearchJobSnapshot | null> {
     if (!isDatabaseConnected() || env.SEARCH_CACHE_TTL_SECONDS === 0) return null;
-    const cache = await SearchCacheModel.findOne({ cacheKey, expiresAt: { $gt: new Date() } }).lean();
+    const cache = await SearchCacheModel.findOne({ workspaceKey: currentWorkspace(), cacheKey, expiresAt: { $gt: new Date() } }).lean();
     if (!cache) return null;
-    const job = await SearchJobModel.findById(cache.jobId).lean();
+    const job = await SearchJobModel.findOne({ _id: cache.jobId, workspaceKey: currentWorkspace() }).lean();
     return job ? toSnapshot(job) : null;
   }
 
   private async patchJob(jobId: string, patch: Record<string, unknown>): Promise<void> {
-    if (isDatabaseConnected()) { await SearchJobModel.updateOne({ _id: jobId }, { $set: normalizeDatePatch(patch) }); return; }
+    if (isDatabaseConnected()) { await SearchJobModel.updateOne({ _id: jobId, workspaceKey: currentWorkspace() }, { $set: normalizeDatePatch(patch) }); return; }
     const job = this.#memoryJobs.get(jobId); if (job) this.#memoryJobs.set(jobId, { ...job, ...patch } as SearchJobSnapshot);
   }
 
@@ -210,24 +276,34 @@ export class SearchJobService {
 
 function repositoryDocument(jobId: Types.ObjectId, repository: NormalizedRepository, documentId: Types.ObjectId, duplicateUrlOf: Types.ObjectId | null) {
   const { id: _id, createdAt, updatedAt, ...rest } = repository;
-  return { ...rest, _id: documentId, jobId, canonicalUrl: canonicalizeUrl(repository.repositoryUrl), duplicateUrlOf, sourceCreatedAt: createdAt ? new Date(createdAt) : null, sourceUpdatedAt: updatedAt ? new Date(updatedAt) : null, pushedAt: repository.pushedAt ? new Date(repository.pushedAt) : null };
+  return { ...rest, _id: documentId, workspaceKey: currentWorkspace(), jobId, canonicalUrl: canonicalizeUrl(repository.repositoryUrl), duplicateUrlOf, sourceCreatedAt: createdAt ? new Date(createdAt) : null, sourceUpdatedAt: updatedAt ? new Date(updatedAt) : null, pushedAt: repository.pushedAt ? new Date(repository.pushedAt) : null };
 }
 function repositoryFromDocument(document: Record<string, unknown>): NormalizedRepository {
   const date = (value: unknown): string | null => value instanceof Date ? value.toISOString() : null;
   return {
-    id: `${String(document.source)}:${String(document.externalId)}`, source: document.source as RepositorySource, externalId: String(document.externalId),
+    id: `${String(document.source)}:${String(document.externalId)}`, repositoryId: String(document._id), source: document.source as RepositorySource, externalId: String(document.externalId),
     owner: String(document.owner ?? ""), name: String(document.name ?? ""), fullName: String(document.fullName ?? ""), description: typeof document.description === "string" ? document.description : null,
     repositoryUrl: String(document.repositoryUrl), cloneUrl: typeof document.cloneUrl === "string" ? document.cloneUrl : null, defaultBranch: typeof document.defaultBranch === "string" ? document.defaultBranch : null,
     language: typeof document.language === "string" ? document.language : null, languages: Array.isArray(document.languages) ? document.languages.map(String) : [], topics: Array.isArray(document.topics) ? document.topics.map(String) : [],
     stars: Number(document.stars ?? 0), forks: Number(document.forks ?? 0), watchers: typeof document.watchers === "number" ? document.watchers : null, openIssues: typeof document.openIssues === "number" ? document.openIssues : null,
     license: typeof document.license === "string" ? document.license : null, createdAt: date(document.sourceCreatedAt), updatedAt: date(document.sourceUpdatedAt), pushedAt: date(document.pushedAt), archived: document.archived === true, fork: document.fork === true,
-    visibility: typeof document.visibility === "string" ? document.visibility : null, sourceMetadata: typeof document.sourceMetadata === "object" && document.sourceMetadata !== null ? document.sourceMetadata as Record<string, unknown> : {}
+    visibility: typeof document.visibility === "string" ? document.visibility : null,
+    sourceMetadata: safeSourceMetadata({ ...(typeof document.sourceMetadata === "object" && document.sourceMetadata !== null ? document.sourceMetadata as Record<string, unknown> : {}), ...(document.duplicateUrlOf ? { duplicateOfRepositoryId: String(document.duplicateUrlOf) } : {}) })
   };
+}
+function sanitizeRepository(repository: NormalizedRepository): NormalizedRepository { return { ...repository, sourceMetadata: safeSourceMetadata(repository.sourceMetadata) }; }
+function safeSourceMetadata(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object") return {};
+  const input = value as Record<string, unknown>;
+  const allowed = ["repositoryId", "projectId", "pathWithNamespace", "namespaceKind", "ownerType", "homepage", "sizeKb", "mirror", "readmeUrl", "lastActivityAt", "duplicateOfRepositoryId"];
+  return Object.fromEntries(allowed.filter((key) => input[key] !== undefined).map((key) => [key, input[key]]));
 }
 function toSnapshot(document: Record<string, unknown>): SearchJobSnapshot {
   const iso = (value: unknown): string | null => value instanceof Date ? value.toISOString() : typeof value === "string" ? value : null;
   return { jobId: String(document._id ?? document.jobId), status: document.status as SearchJobStatus, request: document.request as RepositorySearchRequest, sourceProgress: document.sourceProgress as SourceProgress[], totalUnique: Number(document.totalUnique ?? 0), cancelRequested: document.cancelRequested === true, cached: document.cached === true, createdAt: iso(document.createdAt) ?? new Date().toISOString(), startedAt: iso(document.startedAt), completedAt: iso(document.completedAt) };
 }
+function snapshotToSummary(job: SearchJobSnapshot): SearchJobSummary { return { jobId: job.jobId, query: job.request.query, requestedSources: job.request.sources, collectionMode: job.request.collectionMode, status: job.status, totalUnique: job.totalUnique, createdAt: job.createdAt, startedAt: job.startedAt, completedAt: job.completedAt, cached: job.cached }; }
+function toSummary(document: Record<string, unknown>): SearchJobSummary { return snapshotToSummary(toSnapshot(document)); }
 function normalizeDatePatch(patch: Record<string, unknown>): Record<string, unknown> { const copy = { ...patch }; for (const key of ["startedAt", "completedAt"]) if (typeof copy[key] === "string") copy[key] = new Date(copy[key]); return copy; }
 function searchCacheKey(request: RepositorySearchRequest): string {
   const normalized = {
@@ -239,5 +315,5 @@ function searchCacheKey(request: RepositorySearchRequest): string {
 function stableStringify(value: unknown): string { if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`; if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`).join(",")}}`; return JSON.stringify(value); }
 export function canonicalizeRepositoryUrl(value: string): string { try { const url = new URL(value); url.hash = ""; url.search = ""; url.hostname = url.hostname.toLowerCase(); url.pathname = url.pathname.replace(/\/+$/, "").replace(/\.git$/i, "").toLowerCase(); return url.toString(); } catch { return value.trim(); } }
 const canonicalizeUrl = canonicalizeRepositoryUrl;
-function assertObjectId(value: string): void { if (!Types.ObjectId.isValid(value)) throw new AppError(400, "INVALID_JOB_ID", "Search job ID is invalid"); }
+function assertObjectId(value: string, code = "INVALID_JOB_ID", message = "Search job ID is invalid"): void { if (!Types.ObjectId.isValid(value)) throw new AppError(400, code, message); }
 async function mapLimit<T>(values: T[], limit: number, task: (value: T) => Promise<void>): Promise<void> { let cursor = 0; async function worker() { while (cursor < values.length) { const value = values[cursor++]; if (value !== undefined) await task(value); } } await Promise.all(Array.from({ length: Math.min(limit, values.length) }, worker)); }
